@@ -1,8 +1,23 @@
 {-|
 hledger-ui - a hledger add-on providing an efficient TUI.
-Copyright (c) 2007-2015 Simon Michael <simon@joyful.com>
-Released under GPL version 3 or later.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (c) 2007-2025 (each year in this range) Simon Michael <simon@joyful.com> and contributors.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License along with this program.
+If not, see <https://www.gnu.org/licenses/>.
+
 -}
+
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -13,21 +28,25 @@ module Hledger.UI.Main where
 import Control.Applicative ((<|>))
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (withAsync)
+#if MIN_VERSION_base(4,20,0)
+import Control.Exception.Backtrace (setBacktraceMechanismState, BacktraceMechanism(..))
+#endif
 import Control.Monad (forM_, void, when)
 import Data.Bifunctor (first)
 import Data.Function ((&))
 import Data.List (find)
 import Data.List.Extra (nubSort)
 import Data.Maybe (fromMaybe)
-import qualified Data.Text as T
-import Graphics.Vty (mkVty, Mode (Mouse), Vty (outputIface), Output (setMode))
+import Data.Text qualified as T
+import Graphics.Vty (Mode (Mouse), Vty (outputIface), Output (setMode))
+import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro ((^.))
 import System.Directory (canonicalizePath)
 import System.Environment (withProgName)
 import System.FilePath (takeDirectory)
-import System.FSNotify (Event(Modified), watchDir, withManager, EventIsDirectory (IsFile))
+import System.FSNotify (Event(Added, Modified), watchDir, withManager, EventIsDirectory (IsFile))
 import Brick hiding (bsDraw)
-import qualified Brick.BChan as BC
+import Brick.BChan qualified as BC
 
 import Hledger
 import Hledger.Cli hiding (progname,prognameandversion)
@@ -56,28 +75,50 @@ writeChan :: BC.BChan a -> a -> IO ()
 writeChan = BC.writeBChan
 
 
-main :: IO ()
-main = withProgName "hledger-ui.log" $ do  -- force Hledger.Utils.Debug.* to log to hledger-ui.log
-  traceLogAtIO 1 "\n\n\n\n==== hledger-ui start"
+hledgerUiMain :: IO ()
+hledgerUiMain = handleExit $ withGhcDebug' $ withProgName "hledger-ui.log" $ do  -- force Hledger.Utils.Debug.* to log to hledger-ui.log
+  when (ghcDebugMode == GDPauseAtStart) $ ghcDebugPause'
+
+#if MIN_VERSION_base(4,20,0)
+  -- Control ghc 9.10+'s stack traces.
+  -- CostCentreBacktrace   - collect cost-centre stack backtraces (only available when built with profiling)
+  -- HasCallStackBacktrace - collect HasCallStack backtraces
+  -- ExecutionBacktrace    - collect backtraces from native execution stack unwinding
+  -- IPEBacktrace          - collect backtraces from Info Table Provenance Entries
+#ifdef DEBUG
+  setBacktraceMechanismState HasCallStackBacktrace True
+#else
+  setBacktraceMechanismState HasCallStackBacktrace False
+#endif
+#endif
+
+  dbg1MsgIO "\n\n\n\n==== hledger-ui start"
   dbg1IO "args" progArgs
   dbg1IO "debugLevel" debugLevel
 
-  -- try to encourage user's $PAGER to properly display ANSI (in command line help)
-  when useColorOnStdout setupPager
-
-  opts@UIOpts{uoCliOpts=copts@CliOpts{inputopts_=iopts,rawopts_=rawopts}} <- getHledgerUIOpts
+  opts1@UIOpts{uoCliOpts=copts@CliOpts{inputopts_=iopts,rawopts_=rawopts}} <- getHledgerUIOpts
   -- when (debug_ $ cliopts_ opts) $ printf "%s\n" prognameandversion >> printf "opts: %s\n" (show opts)
+
+  usecolor <- useColorOnStdout
+  -- And when it's not, disable colour in the TUI ?
+  -- Theme.hs's themes currently hard code various colours and styles provided by vty,
+  -- which probably are disabled automatically when terminal doesn't support them.
+  -- But we'll at least force hledger-ui's theme to a monochrome one.
+  let opts = if usecolor then opts1 else opts1{uoTheme=Just "terminal"}
 
   -- always generate forecasted periodic transactions; their visibility will be toggled by the UI.
   let copts' = copts{inputopts_=iopts{forecast_=forecast_ iopts <|> Just nulldatespan}}
 
   case True of
-    _ | "help"            `inRawOpts` rawopts -> pager (showModeUsage uimode)
-    _ | "info"            `inRawOpts` rawopts -> runInfoForTopic "hledger-ui" Nothing
-    _ | "man"             `inRawOpts` rawopts -> runManForTopic  "hledger-ui" Nothing
-    _ | "version"         `inRawOpts` rawopts -> putStrLn prognameandversion
-    -- _ | "binary-filename" `inRawOpts` rawopts -> putStrLn (binaryfilename progname)
-    _                                         -> withJournalDo copts' (runBrickUi opts)
+    _ | boolopt "help"    rawopts -> runPager $ showModeUsage uimode ++ "\n"
+    _ | boolopt "tldr"    rawopts -> runTldrForPage "hledger-ui"
+    _ | boolopt "info"    rawopts -> runInfoForTopic "hledger-ui" Nothing
+    _ | boolopt "man"     rawopts -> runManForTopic  "hledger-ui" Nothing
+    _ | boolopt "version" rawopts -> putStrLn prognameandversion
+    -- _ | boolopt "binary-filename" rawopts -> putStrLn (binaryfilename progname)
+    _                                         -> withJournal copts' (runBrickUi opts)
+
+  when (ghcDebugMode == GDPauseAtEnd) $ ghcDebugPause'
 
 runBrickUi :: UIOpts -> Journal -> IO ()
 runBrickUi uopts0@UIOpts{uoCliOpts=copts@CliOpts{inputopts_=_iopts,reportspec_=rspec@ReportSpec{_rsReportOpts=ropts}}} j =
@@ -262,9 +303,8 @@ runBrickUi uopts0@UIOpts{uoCliOpts=copts@CliOpts{inputopts_=_iopts,reportspec_=r
           d
           -- predicate: ignore changes not involving our files
           (\case
-            Modified f _ IsFile -> f `elem` files
-            -- Added    f _ -> f `elem` files
-            -- Removed  f _ -> f `elem` files
+            Added f _ IsFile -> f `elem` files -- for editors which write the whole file from scratch on saves
+            Modified f _ IsFile -> f `elem` files -- for editors which modify existing files in place
             -- we don't handle adding/removing journal files right now
             -- and there might be some of those events from tmp files
             -- clogging things up so let's ignore them

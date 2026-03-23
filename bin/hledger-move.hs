@@ -37,15 +37,14 @@ import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 import Lens.Micro ((^.))
 import Text.Printf
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import Data.Text qualified as T
+import Data.Text.IO qualified as T
 
-import Hledger.Cli
+import Hledger.Cli.Script
 
 ------------------------------------------------------------------------------
 cmdmode = hledgerCommandMode
-  -- Command name and help text goes here. Current limitations:
-  -- help text must be above _FLAGS, blank lines will not be displayed.
+  -- Command name and help text goes here. Note blank lines will not be displayed.
   [s| hledger-move
 Print an entry to move funds between accounts, preserving costs and subaccounts
 .
@@ -82,32 +81,31 @@ Examples:
 .
 $ hledger-move $50 assets:checking assets:cash  # withdraw cash from bank
 $ hledger-move ADA1000 ada:wallet1 ada:wallet2  # move 1000 ADA, keeping lots
-
-_FLAGS
 |]
 {- NOT YET IMPLEMENTED:
 
-As a convenience, no symbol means "move the account's only commodity";
+- As a convenience, no symbol means "move the account's only commodity";
 this works when the source account contains just one commodity.
 $ hledger-move 50 checking cash                 # the same, less typing
 
-A zero AMT means "move all of the specified commodity".
+- A zero AMT means "move all of the specified commodity".
+$ hledger-move $0 checking cash                 # move all $ from checking
 
-or the keyword "all"
-An "all" AMT does the same, but for all commodities present;
-it works when all of the source account's commodities are positive.
-$ hledger-move all savings checking               # all savings -> checking
-$ hledger-move all assets:broker1:FOO assets:broker2:FOO  # move all lots
+- The "all" AMT does the same, but for any and all commodities present,
+without having to write the commodity symbol(s).
+It requires that all of the source account's commodities are positive.
+$ hledger-move all savings checking             # move all from savings
+$ hledger-move all assets:broker1:FOO assets:broker2:FOO  # move all FOO lots to broker2
 
-It is aware of account balances, and prevents overdraft/overpay:
-it will fail if the requested transfer would make
-the source account go negative (as when overdrawing an asset)
-or the destination account go positive (as when over-paying a liability).
-You can disable this validation by adding the --force flag.
+- It is aware of account balances, and prevents overdraft or overpay:
+  it will fail if the requested transfer would change
+  the source account's balance from positive to negative (as when overdrawing an asset)
+  or the destination account's balance from negative to positive (as when over-paying a liability).
+  You can disable this validation by adding the --force flag.
 
-balance assertions
+- balance assertions
 
-respecting end date, for calculating balances and generated txn date
+- respecting end date, for calculating balances and generated txn date
 
 -}
 
@@ -130,7 +128,7 @@ respecting end date, for calculating balances and generated txn date
 main :: IO ()
 main = do
   copts@CliOpts{rawopts_=rawopts, reportspec_=rspec0} <- getHledgerCliOpts cmdmode
-  withJournalDo copts $ \j -> do
+  withJournal copts $ \j -> do
     -- d <- getCurrentDay
     let
       -- arg errors
@@ -156,7 +154,7 @@ main = do
       force       = boolopt "force" rawopts
 
       -- parse the AMT arg as a cost-less Amount (any provided cost is ignored)
-      eamt = styleAmount (journalCommodityStyles j) . amountStripPrices <$> parseamount amtarg
+      eamt = styleAmounts (journalCommodityStyles j) . amountStripCost <$> parseamount amtarg
       amt = case eamt of
         Left err ->
           error' $ "could not parse " ++ show amtarg ++ " as a hledger amount\n" ++ customErrorBundlePretty err ++ "\n" ++shortusage
@@ -183,7 +181,7 @@ main = do
       availablebal =
         headDef zero $ amounts $
         filterMixedAmountByCommodity comm $
-        mixedAmountStripPrices $ sum $ map fourth4 acctbals
+        mixedAmountStripCosts $ sum $ map fourth4 acctbals
 
       -- Take just enough of these account balances, in the order given,
       -- to cover the requested AMT. Or if there is not enough, take what is there.
@@ -206,7 +204,7 @@ main = do
                   -- the final balance portion to move
                   finalamt = dbgamt "final amt to move" $
                     (balincommsinglecost + stilltomovenext)
-                      {aprice=aprice balincommsinglecost}  -- + discards cost, need to restore it
+                      {acost=acost balincommsinglecost}  -- + discards cost, need to restore it
                 in (0, reverse $ (acct, mixed [finalamt]) : balscollected)
             where
               -- how much of the requested commodity is in this account
@@ -220,7 +218,7 @@ main = do
                             ++ showMixedAmountOneLine balincomm ++ ")"
               -- subtract this from the amount remaining to move (ignoring cost)
               stilltomovenext = dbgamt "remaining amt to move" $
-                stilltomove - amountStripPrices balincommsinglecost
+                stilltomove - amountStripCost balincommsinglecost
 
       -- since balance assertion amounts are required to be exact, the
       -- amounts in opening/closing transactions should be too (#941, #1137)
@@ -228,7 +226,7 @@ main = do
       fromps = [
         posting{paccount = a
                 ,pamount = mixedAmount $ negate b
-                -- ,pbalanceassertion = Just nullassertion{baamount=precise b{aquantity=0, aprice=Nothing}}
+                -- ,pbalanceassertion = Just nullassertion{baamount=precise b{aquantity=0, acost=Nothing}}
                 }
 
         | -- get the balances for each commodity and transaction price

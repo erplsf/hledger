@@ -1,4 +1,6 @@
-# just check
+# * scientific notation number parsing
+
+# ** 1. just check
 <
 D $1,000.00
 
@@ -7,7 +9,7 @@ D $1,000.00
 $ hledger -f - bal --no-total
                $2.30  a
 
-# some basic cases with commodity
+# ** 2. some basic cases with commodity
 <
 commodity $1,000.00000000
 
@@ -22,7 +24,7 @@ $ hledger -f - bal --no-total
      $1,000.00000000  c
     $-1,108.14159260  d
 
-# some basic cases with commodity
+# ** 3. some basic cases with commodity
 <
 commodity $1,000.00000000
 
@@ -33,14 +35,14 @@ commodity $1,000.00000000
    d
 $ hledger -f - print --explicit
 2018-01-01
-    a       $105.00000000
-    b         $3.14159260
-    c     $1,000.00000000
-    d    $-1,108.14159260
+    a               $105
+    b         $3.1415926
+    c            $1,000.
+    d    $-1,108.1415926
 
 >=
 
-# some basic cases
+# ** 4. some basic cases
 <
 2018/1/1
    a  1.05e2
@@ -53,7 +55,7 @@ $ hledger -f - bal --no-total
         1000.0000000  c
        -1108.1415926  d
 
-# we still should recognize commodities with e
+# ** 5. we still should recognize commodities with e
 <
 2018/1/1
    (a)  1.00005e
@@ -62,6 +64,7 @@ $ hledger -f - bal --no-total
             2.00003E
             1.00005e  a
 
+# ** 6.
 <
 2018/1/1
    (a)  1,000.5e-1

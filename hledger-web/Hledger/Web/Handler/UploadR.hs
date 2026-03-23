@@ -10,10 +10,10 @@ module Hledger.Web.Handler.UploadR
   ) where
 
 import Control.Monad.Except (runExceptT)
-import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Lazy qualified as BL
 import Data.Conduit (connect)
 import Data.Conduit.Binary (sinkLbs)
-import qualified Data.Text.Encoding as TE
+import Data.Text.Encoding qualified as TE
 
 import Hledger.Web.Import
 import Hledger.Web.Widget.Common (fromFormSuccess, journalFile404, writeJournalTextIfValidAndChanged)
@@ -35,8 +35,8 @@ getUploadR f = do
 postUploadR :: FilePath -> Handler ()
 postUploadR f = do
   checkServerSideUiEnabled
-  VD {caps, j} <- getViewData
-  when (CapManage `notElem` caps) (permissionDenied "Missing the 'manage' capability")
+  VD {j} <- getViewData
+  require EditPermission
 
   (f', _) <- journalFile404 f j
   ((res, view), enctype) <- runFormPost (uploadForm f')

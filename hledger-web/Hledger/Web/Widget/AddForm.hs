@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -11,21 +12,24 @@ module Hledger.Web.Widget.AddForm
   ) where
 
 import Control.Monad.State.Strict (evalStateT)
+#if MIN_VERSION_base64(1,0,0)
+import Data.Base64.Types (extractBase64)
+#endif
 import Data.Bifunctor (first)
 import Data.Foldable (toList)
 import Data.List (dropWhileEnd, unfoldr)
 import Data.Maybe (isJust, fromMaybe)
-import qualified Data.Set as S
+import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text.Encoding.Base64 (encodeBase64)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time (Day)
 import Text.Blaze.Internal (Markup, preEscapedText)
 import Text.Megaparsec (bundleErrors, eof, parseErrorTextPretty, runParser)
 import Yesod
 
 import Hledger
-import Hledger.Web.Foundation (App, Handler, Widget)
+import Hledger.Web.App (App, Handler, Widget)
 import Hledger.Web.Settings (widgetFile)
 import Data.Function ((&))
 import Control.Arrow (right)
@@ -92,7 +96,7 @@ validateTransaction ::
   -> FormResult (Transaction, FilePath)
 validateTransaction deffile dateRes descRes postingsRes fileRes =
   case makeTransaction <$> dateRes <*> descRes <*> postingsRes <*> fileRes of
-    FormSuccess (txn,f) -> case balanceTransaction defbalancingopts txn of
+    FormSuccess (txn,f) -> case balanceSingleTransaction defbalancingopts txn of
       Left e     -> FormFailure [T.pack e]
       Right txn' -> FormSuccess (txn',f)
     x -> x
@@ -192,7 +196,11 @@ toBloodhoundJson ts =
     ]
   where
     -- decodeBase64EncodedText is defined in add-form.hamlet
-    b64wrap = ("decodeBase64EncodedText(\""<>) . (<>"\")") . encodeBase64
+    b64wrap = ("decodeBase64EncodedText(\""<>) . (<>"\")") .
+#if MIN_VERSION_base64(1,0,0)
+      extractBase64 .
+#endif
+      encodeBase64
 
 zipDefault :: a -> [a] -> [a] -> [(a, a)]
 zipDefault def (b:bs) (c:cs) = (b, c):(zipDefault def bs cs)

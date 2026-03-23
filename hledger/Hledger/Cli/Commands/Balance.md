@@ -2,17 +2,80 @@
 
 (bal)
 
-Show accounts and their balances.
+A flexible, general purpose "summing" report that shows accounts with some kind of numeric data.
+This can be balance changes per period, end balances, budget performance, unrealised capital gains, etc.
 
-_FLAGS
+```flags
+Flags:
+     --sum                  calculation mode: show sum of posting amounts
+                            (default)
+     --valuechange          calculation mode: show total change of value of
+                            period-end historical balances (caused by deposits,
+                            withdrawals, market price fluctuations)
+     --gain                 calculation mode: show unrealised capital
+                            gain/loss (historical balance value minus cost
+                            basis)
+     --budget[=DESCPAT]     calculation mode: show sum of posting amounts
+                            together with budget goals defined by periodic
+                            transactions. With a DESCPAT argument (must be
+                            separated by = not space),
+                            use only periodic transactions with matching
+                            description
+                            (case insensitive substring match).
+     --count                calculation mode: show the count of postings
+     --change               accumulation mode: accumulate amounts from column
+                            start to column end (in multicolumn reports,
+                            default)
+     --cumulative           accumulation mode: accumulate amounts from report
+                            start (specified by e.g. -b/--begin) to column end
+  -H --historical           accumulation mode: accumulate amounts from
+                            journal start to column end (includes postings
+                            before report start date)
+  -l --flat                 list/tree mode: show accounts as a flat list
+                            (default). Amounts exclude subaccount amounts,
+                            except where the account is depth-clipped.
+  -t --tree                 list/tree mode: show accounts as a tree. Amounts
+                            include subaccount amounts.
+     --drop=N               in list mode, omit N leading account name parts
+     --declared             include non-parent declared accounts (best used
+                            with -E)
+  -A --average              show a row average column (in multicolumn
+                            reports)
+  -T --row-total            show a row total column (in multicolumn reports)
+     --summary-only         display only row summaries (e.g. row total,
+                            average) (in multicolumn reports)
+  -N --no-total             omit the final total row
+     --no-elide             in tree mode, don't squash boring parent accounts
+     --format=FORMATSTR     use this custom line format (in simple reports)
+  -S --sort-amount          sort by amount instead of account code/name (in
+                            flat mode). With multiple columns, sorts by the row
+                            total, or by row average if that is displayed.
+  -% --percent              express values in percentage of each column's
+                            total
+  -r --related              show the other accounts transacted with, instead
+     --invert               display all amounts with reversed sign
+     --transpose            switch rows and columns (use vertical time axis)
+     --layout=ARG           how to lay out multi-commodity amounts and the
+                            overall table:
+                            'wide[,W]': commodities on same line, up to W wide
+                            'tall'    : commodities on separate lines
+                            'bare'    : commodity symbols in a separate column
+                            'tidy'    : each data field in its own column
+     --base-url=URLPREFIX   in html output, generate links to hledger-web,
+                            with this prefix. (Usually the base url shown by
+                            hledger-web; can also be relative.)
+  -O --output-format=FMT    select the output format. Supported formats:
+                            txt, html, csv, tsv, json, fods.
+  -o --output-file=FILE     write output to FILE. A file extension matching
+                            one of the above formats selects that format.
+```
 
 `balance` is one of hledger's oldest and most versatile commands,
 for listing account balances, balance changes, values, value changes and more,
 during one time period or many.
 Generally it shows a table, with rows representing accounts, and columns representing periods. 
 
-Note there are some higher-level variants of the `balance` command
-with convenient defaults, which can be simpler to use:
+Note there are some variants of the `balance` command with convenient defaults, which are simpler to use:
 [`balancesheet`](#balancesheet),
 [`balancesheetequity`](#balancesheetequity),
 [`cashflow`](#cashflow) and
@@ -23,7 +86,7 @@ When you need more control, then use `balance`.
 
 Here's a quick overview of the `balance` command's features,
 followed by more detailed descriptions and examples.
-Many of these work with the higher-level commands as well.
+Many of these work with the other balance-like commands as well (`bs`, `cf`, `is`..).
 
 `balance` can show..
 
@@ -36,10 +99,11 @@ Many of these work with the higher-level commands as well.
 
 - balance changes (the default)
 - or actual and planned balance changes ([`--budget`](#budget-report))
-- or value of balance changes ([`-V`](#valuation-type))
-- or change of balance values ([`--valuechange`](#balance-report-types))
-- or unrealised capital gain/loss ([`--gain`](#balance-report-types))
-- or postings count ([`--count`](#balance-report-types))
+- or value of balance changes ([`-V`](#valuation-mode))
+- or change of balance values ([`--valuechange`](#balance-report-modes))
+- or unrealised capital gain/loss ([`--gain`](#balance-report-modes))
+- or balance changes from sibling postings (`--related`/`-r`)
+- or postings count ([`--count`](#balance-report-modes))
 
 ..in..
 
@@ -49,16 +113,16 @@ Many of these work with the higher-level commands as well.
 ..either..
 
 - per period (the default)
-- or accumulated since report start date ([`--cumulative`](#accumulation-type))
-- or accumulated since account creation ([`--historical/-H`](#accumulation-type))
+- or accumulated since report start date ([`--cumulative`](#accumulation-mode))
+- or accumulated since account creation ([`--historical/-H`](#accumulation-mode))
 
 ..possibly converted to..
 
-- cost ([`--value=cost[,COMM]`/`--cost`/`-B`](#valuation-type))
-- or market value, as of transaction dates ([`--value=then[,COMM]`](#valuation-type))
-- or at period ends ([`--value=end[,COMM]`](#valuation-type))
-- or now ([`--value=now`](#valuation-type))
-- or at some other date ([`--value=YYYY-MM-DD`](#valuation-type))
+- cost ([`--value=cost[,COMM]`/`--cost`/`-B`](#valuation-mode))
+- or market value, as of transaction dates ([`--value=then[,COMM]`](#valuation-mode))
+- or at period ends ([`--value=end[,COMM]`](#valuation-mode))
+- or now ([`--value=now`](#valuation-mode))
+- or at some other date ([`--value=YYYY-MM-DD`](#valuation-mode))
 
 ..with..
 
@@ -69,16 +133,13 @@ Many of these work with the higher-level commands as well.
 - rows and columns swapped ([`--transpose`](#multi-period-balance-report))
 - another field used as account name ([`--pivot`](#multi-period-balance-report))
 - custom-formatted line items (single-period reports only) ([`--format`](#balance-report-line-format))
-- commodities displayed on the same line or multiple lines ([`--layout`](#commodity-layout))
+- commodities displayed on the same line or multiple lines ([`--layout`](#balance-report-layout))
 
 This command supports the
 [output destination](#output-destination) and
 [output format](#output-format) options,
-with output formats `txt`, `csv`, `json`, and (multi-period reports only:) `html`. 
+with output formats `txt`, `csv`, `tsv` (*Added in 1.32*), `json`, and (multi-period reports only:) `html`, `fods` (*Added in 1.40*).
 In `txt` output in a colour-supporting terminal, negative amounts are shown in red.
-
-The `--related`/`-r` flag shows the balance of the *other* postings in the
-transactions of the postings which would normally be shown.
 
 ### Simple balance report
 
@@ -96,7 +157,7 @@ if any, and then alphabetically by account name.
 For instance 
 (using [examples/sample.journal](https://github.com/simonmichael/hledger/blob/master/examples/sample.journal)):
 
-```shell
+```cli
 $ hledger -f examples/sample.journal bal
                   $1  assets:bank:saving
                  $-2  assets:cash
@@ -113,7 +174,7 @@ Accounts with a zero balance (and no non-zero subaccounts, in tree
 mode - see below) are hidden by default. Use `-E/--empty` to show them
 (revealing `assets:bank:checking` here):
  
-```shell
+```cli
 $ hledger -f examples/sample.journal bal  -E
                    0  assets:bank:checking
                   $1  assets:bank:saving
@@ -135,7 +196,7 @@ For single-period balance reports displayed in the terminal (only),
 you can use `--format FMT` to customise the format and content of each
 line. Eg:
 
-```shell
+```cli
 $ hledger -f examples/sample.journal balance --format "%20(account) %12(total)"
               assets          $-1
          bank:saving           $1
@@ -189,6 +250,7 @@ Some example formats:
 [valuation]: #valuation
 [valuation date(s)]: #valuation-date
 [valuation commodity]: #valuation-commodity
+
 ### Filtered balance report
 
 You can show fewer accounts, a different time period, totals from
@@ -196,7 +258,7 @@ cleared transactions only, etc. by using [query](#queries)
 arguments or [options](#report-start--end-date) to limit
 the postings being matched. Eg:
 
-```shell
+```cli
 $ hledger -f examples/sample.journal bal --cleared assets date:200806
                  $-2  assets:cash
 --------------------
@@ -211,7 +273,7 @@ with their full names visible, as in the examples above.
 With `-t/--tree`, the account hierarchy is shown, with subaccounts'
 "leaf" names indented below their parent:
 
-```shell
+```cli
 $ hledger -f examples/sample.journal balance
                  $-1  assets
                   $1    bank:saving
@@ -253,7 +315,7 @@ Account balances at the depth limit always include the balances from
 any deeper subaccounts (even in list mode). 
 Eg, limiting to depth 1:
 
-```shell
+```cli
 $ hledger -f examples/sample.journal balance -1
                  $-1  assets
                   $2  expenses
@@ -268,7 +330,7 @@ $ hledger -f examples/sample.journal balance -1
 You can also hide one or more top-level account name parts, using `--drop NUM`.
 This can be useful for hiding repetitive top-level account names:
 
-```shell
+```cli
 $ hledger -f examples/sample.journal bal expenses --drop 1
                   $1  food
                   $1  supplies
@@ -301,7 +363,8 @@ is treated as 0).
 
 Revenues and liability balances are typically negative, however, so `-S` shows these in reverse order.
 To work around this, you can add `--invert` to flip the signs.
-(Or, use one of the higher-level reports, which flip the sign automatically. Eg: `hledger incomestatement -MAS`).
+Or you could use one of the higher-level balance reports (`bs`, `is`..), which flip the sign automatically
+(eg: `hledger is -MAS`).
 
 <a name="tree-mode"></a>
 
@@ -314,7 +377,7 @@ Note it is not useful to calculate percentages if the amounts in a
 column have mixed signs. In this case, make a separate report for each
 sign, eg:
 
-```shell
+```cli
 $ hledger bal -% amt:`>0`
 $ hledger bal -% amt:`<0`
 ```
@@ -323,7 +386,7 @@ Similarly, if the amounts in a column have mixed commodities, convert
 them to one commodity with `-B`, `-V`, `-X` or `--value`, or make a
 separate report for each commodity:
 
-```shell
+```cli
 $ hledger bal -% cur:\\$
 $ hledger bal -% cur:€
 ```
@@ -335,7 +398,7 @@ With a [report interval](#report-intervals) (set by the `-D/--daily`,
 `-p/--period` flag), `balance` shows a tabular report, with columns
 representing successive time periods (and a title):
 
-```shell
+```cli
 $ hledger -f examples/sample.journal bal --quarterly income expenses -E
 Balance changes in 2008:
 
@@ -360,18 +423,23 @@ shown, unless `-E/--empty` is used.
 - Accounts (rows) containing all zeroes are not shown, unless
 `-E/--empty` is used.
 - Amounts with many commodities are shown in abbreviated form, unless
-`--no-elide` is used. *(experimental)*
+`--no-elide` is used.
 - Average and/or total columns can be added with the `-A/--average` and
 `-T/--row-total` flags.
 - The `--transpose` flag can be used to exchange rows and columns.
 - The `--pivot FIELD` option causes a different transaction field to be used as
   "account name". See [PIVOTING](#pivoting).
+- The `--summary-only` flag (`--summary` also works) hides all but the Total and Average columns
+  (those should be enabled with `--row-total` and `-A/--average`).
+
      
 Multi-period reports with many periods can be too wide for easy viewing in the terminal.
 Here are some ways to handle that:
 
 - Hide the totals row with `-N/--no-total`
-- Convert to a single currency with `-V`
+- Filter to a single currency with `cur:`
+- Convert to a single currency with `-V [--infer-market-price]`
+- Use a more compact layout like `--layout=bare`
 - Maximize the terminal window
 - Reduce the terminal's font size
 - View with a pager like less, eg: `hledger bal -D --color=yes | less -RS`
@@ -415,7 +483,7 @@ To see accurate historical end balances:
    or by using the `-H/--historical` flag.
    (`-H` causes report start date to be ignored when summing postings.)
 
-### Balance report types
+### Balance report modes
 
 The balance command is quite flexible; here is the full detail on how to control what it reports.
 If the following seems complicated, don't worry - this is for advanced reporting,
@@ -423,9 +491,9 @@ and it does take time and experimentation to get familiar with all the report mo
 
 There are three important option groups:
 
-`hledger balance [CALCULATIONTYPE] [ACCUMULATIONTYPE] [VALUATIONTYPE] ...`
+`hledger balance [CALCULATIONMODE] [ACCUMULATIONMODE] [VALUATIONMODE] ...`
 
-#### Calculation type
+#### Calculation mode
 
 The basic calculation to perform for each table cell.
 It is one of:
@@ -438,15 +506,15 @@ It is one of:
   minus each amount's original cost)
 - `--count` : show the count of postings
 
-#### Accumulation type
+#### Accumulation mode
 
-How amounts should accumulate across report periods.
+How amounts should accumulate across a report's subperiods/columns.
 Another way to say it: which time period's postings should contribute to each cell's calculation.
 It is one of:
 
 - `--change` : calculate with postings from column start to column end, ie "just this column".
   Typically used to see revenues/expenses.
-  (**default for balance, incomestatement**)
+  (**default for balance, cashflow, incomestatement**)
 
 - `--cumulative` : calculate with postings from report start to column end, ie "previous columns plus this column".
   Typically used to show changes accumulated since the report's start date.
@@ -455,14 +523,16 @@ It is one of:
 - `--historical/-H` : calculate with postings from journal start to column end,
   ie "all postings from before report start date until this column's end".
   Typically used to see historical end balances of assets/liabilities/equity.
-  (**default for balancesheet, balancesheetequity, cashflow**)
+  (**default for balancesheet, balancesheetequity**)
 
-#### Valuation type
+#### Valuation mode
 
 Which kind of value or cost conversion should be applied, if any, before displaying the report.
-It is one of:
+See [Cost reporting](#cost-reporting) and [Value reporting](#value-reporting) for more about conversions.
 
-- no valuation type           : don't convert to cost or value (**default**)
+A valuation (or cost) mode can be selected with the --value option:
+
+- no conversion               : don't convert to cost or value (**default**)
 - `--value=cost[,COMM]`       : convert amounts to cost (then optionally to some other commodity)
 - `--value=then[,COMM]`       : convert amounts to market value on transaction dates
 - `--value=end[,COMM]`        : convert amounts to market value on period end date(s)\
@@ -470,17 +540,18 @@ It is one of:
 - `--value=now[,COMM]`        : convert amounts to market value on today's date
 - `--value=YYYY-MM-DD[,COMM]` : convert amounts to market value on another date
 
-or one of the equivalent simpler flags:
+or with the legacy -B/-V/-X options, which are equivalent and easier to type:
 
-- `-B/--cost`               : like --value=cost (though, note --cost and --value are independent options which can both be used at once)
-- `-V/--market`             : like --value=end
-- `-X COMM/--exchange COMM` : like --value=end,COMM
+- `-B`/`--cost`               : like --value=cost
+- `-V`/`--market`             : like --value=end
+- `-X COMM`/`--exchange COMM` : like --value=end,COMM
 
-See [Cost reporting](#cost-reporting) and [Valuation](#valuation) for more about these.
+Note that --value can also convert to cost, as a convenience;
+but actually --cost and --value are independent options, and could be used together.
 
-#### Combining balance report types
+#### Combining balance report modes
 
-Most combinations of these options should produce reasonable reports,
+Most combinations of these modes should produce reasonable reports,
 but if you find any that seem wrong or misleading, let us know.
 The following restrictions are applied:
 
@@ -498,138 +569,118 @@ For reference, here is what the combinations of accumulation and valuation show:
 
 ### Budget report
 
-The `--budget` report type activates extra columns showing any budget goals for each account and period.
-The budget goals are defined by [periodic transactions](hledger.html#periodic-transactions).
+The `--budget` report is like a regular balance report, but with two main differences:
+
+- Budget goals and performance percentages are also shown, in brackets
+- Accounts which don't have budget goals are hidden by default.
+
 This is useful for comparing planned and actual income, expenses, time usage, etc.
 
-For example, you can take average monthly expenses in the common expense categories to construct a minimal monthly budget:
+[Periodic transaction rules](hledger.html#periodic-transactions) are used to define budget goals.
+For example, here's a periodic rule defining monthly goals for bus travel and food expenses:
+
 ```journal
 ;; Budget
 ~ monthly
-  income  $2000
-  expenses:food    $400
-  expenses:bus     $50
-  expenses:movies  $30
-  assets:bank:checking
+  (expenses:bus)              $30
+  (expenses:food)            $400
+```
 
+After recording some actual expenses,
+```journal
 ;; Two months worth of expenses
 2017-11-01
-  income  $1950
-  expenses:food    $396
-  expenses:bus     $49
-  expenses:movies  $30
-  expenses:supplies  $20
+  income                   $-1950
+  expenses:bus                $35
+  expenses:food:groceries    $310
+  expenses:food:dining        $42
+  expenses:movies             $38
   assets:bank:checking
 
 2017-12-01
-  income  $2100
-  expenses:food    $412
-  expenses:bus     $53
-  expenses:gifts   $100
+  income                   $-2100
+  expenses:bus                $53
+  expenses:food:groceries    $380
+  expenses:food:dining        $32
+  expenses:gifts             $100
   assets:bank:checking
 ```
 
-You can now see a monthly budget report:
-```shell
-$ hledger balance -M --budget
-Budget performance in 2017/11/01-2017/12/31:
+we can see a budget report like this:
 
-                      ||                      Nov                       Dec 
-======================++====================================================
- assets               || $-2445 [  99% of $-2480]  $-2665 [ 107% of $-2480] 
- assets:bank          || $-2445 [  99% of $-2480]  $-2665 [ 107% of $-2480] 
- assets:bank:checking || $-2445 [  99% of $-2480]  $-2665 [ 107% of $-2480] 
- expenses             ||   $495 [ 103% of   $480]    $565 [ 118% of   $480] 
- expenses:bus         ||    $49 [  98% of    $50]     $53 [ 106% of    $50] 
- expenses:food        ||   $396 [  99% of   $400]    $412 [ 103% of   $400] 
- expenses:movies      ||    $30 [ 100% of    $30]       0 [   0% of    $30] 
- income               ||  $1950 [  98% of  $2000]   $2100 [ 105% of  $2000] 
-----------------------++----------------------------------------------------
-                      ||      0 [              0]       0 [              0] 
+```cli
+$ hledger bal -M --budget
+Budget performance in 2017-11-01..2017-12-31:
+
+               ||                  Nov                   Dec 
+===============++============================================
+ <unbudgeted>  || $-425                 $-565                
+ expenses      ||  $425 [ 99% of $430]   $565 [131% of $430] 
+ expenses:bus  ||   $35 [117% of  $30]    $53 [177% of  $30] 
+ expenses:food ||  $352 [ 88% of $400]   $412 [103% of $400] 
+---------------++--------------------------------------------
+               ||     0 [  0% of $430]      0 [  0% of $430] 
 ```
 
-This is different from a normal balance report in several ways. Currently:
+This is "goal-based budgeting"; you define goals for accounts and periods,
+often recurring, and hledger shows performance relative to the goals. 
+This contrasts with "envelope budgeting", which is more detailed and strict -
+useful when cash is tight, but also quite a bit more work.
+<https://plaintextaccounting.org/Budgeting> has more on this topic.
 
-- Accounts with budget goals during the report period, and their parents, are shown.
-- Their subaccounts are not shown (regardless of the depth setting).
-- Accounts without budget goals, if any, are aggregated and shown as "\<unbudgeted>".
-- Amounts are always inclusive (subaccount-including), even in list mode.
-- After each actual amount, the corresponding goal amount and percentage
-  of goal reached are also shown, in square brackets.
+#### Using the budget report
 
-This means that the numbers displayed will not always add up!
-Eg above, the `expenses`  actual amount includes the gifts and supplies transactions,
-but the `expenses:gifts` and `expenses:supplies` accounts are not
-shown, as they have no budget amounts declared.
+Historically this report has been confusing and fragile.
+hledger's version should be relatively robust and intuitive, but you may still find surprises.
+Here are more notes to help with learning and troubleshooting.
 
-This can be confusing. When you need to make things clearer, use the `-E/--empty` flag, 
-which will reveal all accounts including unbudgeted ones, giving the full picture. Eg:
+- In the above example, `expenses:bus` and `expenses:food` are shown
+  because they have budget goals during the report period.
+  
+- Their parent `expenses` is also shown, with budget goals aggregated from the children.
+   
+- The subaccounts `expenses:food:groceries` and `expenses:food:dining`
+  are not shown since they have no budget goal of their own,
+  but they contribute to `expenses:food`'s actual amount.
 
-```shell
-$ hledger balance -M --budget --empty
-Budget performance in 2017/11/01-2017/12/31:
+- Unbudgeted accounts `expenses:movies` and `expenses:gifts` are also not shown,
+  but they contribute to `expenses`'s actual amount.
 
-                      ||                      Nov                       Dec 
-======================++====================================================
- assets               || $-2445 [  99% of $-2480]  $-2665 [ 107% of $-2480] 
- assets:bank          || $-2445 [  99% of $-2480]  $-2665 [ 107% of $-2480] 
- assets:bank:checking || $-2445 [  99% of $-2480]  $-2665 [ 107% of $-2480] 
- expenses             ||   $495 [ 103% of   $480]    $565 [ 118% of   $480] 
- expenses:bus         ||    $49 [  98% of    $50]     $53 [ 106% of    $50] 
- expenses:food        ||   $396 [  99% of   $400]    $412 [ 103% of   $400] 
- expenses:gifts       ||      0                      $100                   
- expenses:movies      ||    $30 [ 100% of    $30]       0 [   0% of    $30] 
- expenses:supplies    ||    $20                         0                   
- income               ||  $1950 [  98% of  $2000]   $2100 [ 105% of  $2000] 
-----------------------++----------------------------------------------------
-                      ||      0 [              0]       0 [              0] 
-```
+- The other unbudgeted accounts `income` and `assets:bank:checking` are grouped as `<unbudgeted>`.
+
+- `--depth` or `depth:` can be used to limit report depth in the usual way
+  (but will not reveal unbudgeted subaccounts).
+
+- Amounts are always inclusive of subaccounts (even in `-l/--list` mode).
+
+- Numbers displayed in a --budget report will not always agree with the totals,
+  because of hidden unbudgeted accounts; this is normal.
+  `-E/--empty` can be used to reveal the hidden accounts.
+
+- In the periodic rules used for setting budget goals,
+  unbalanced postings are convenient.
+  
+- You can filter budget reports with the usual queries, eg to focus on particular accounts.
+  It's common to restrict them to just expenses.
+  (The `<unbudgeted>` account is occasionally hard to exclude; this is because of date surprises, discussed below.)
+
+- When you have multiple currencies, you may want to convert them to
+  one (`-X COMM --infer-market-prices`) and/or show just one at a time
+  (`cur:COMM`).  If you do need to show multiple currencies at once,
+  `--layout bare` can be helpful.
+
+- You can "roll over" amounts (actual and budgeted) to the next period with `--cumulative`.
+
+See also: <https://hledger.org/budgeting.html>.
 
 
-You can roll over unspent budgets to next period with `--cumulative`:
-```shell
-$ hledger balance -M --budget --cumulative
-Budget performance in 2017/11/01-2017/12/31:
+#### Budget date surprises
 
-                      ||                      Nov                       Dec 
-======================++====================================================
- assets               || $-2445 [  99% of $-2480]  $-5110 [ 103% of $-4960] 
- assets:bank          || $-2445 [  99% of $-2480]  $-5110 [ 103% of $-4960] 
- assets:bank:checking || $-2445 [  99% of $-2480]  $-5110 [ 103% of $-4960] 
- expenses             ||   $495 [ 103% of   $480]   $1060 [ 110% of   $960] 
- expenses:bus         ||    $49 [  98% of    $50]    $102 [ 102% of   $100] 
- expenses:food        ||   $396 [  99% of   $400]    $808 [ 101% of   $800] 
- expenses:movies      ||    $30 [ 100% of    $30]     $30 [  50% of    $60] 
- income               ||  $1950 [  98% of  $2000]   $4050 [ 101% of  $4000] 
-----------------------++----------------------------------------------------
-                      ||      0 [              0]       0 [              0] 
-```
-
-It's common to limit budgets/budget reports to just expenses
-```
-hledger bal -M --budget expenses
-```
-or just revenues and expenses (eg, using account types):
-```
-hledger bal -M --budget type:rx
-```
-
-It's also common to limit or convert them to a single currency
-(`cur:COMM` or `-X COMM [--infer-market-prices]`).
-If showing multiple currencies, `--layout bare` or `--layout tall` can help.
-
-For more examples and notes, see [Budgeting](/budgeting.html).
-
-#### Budget report start date
-
-This might be a bug, but for now:
-when making budget reports, it's a good idea to explicitly set the
-report's start date to the first day of a reporting period, because
-a periodic rule like `~ monthly` generates its transactions on the 1st
-of each month, and if your journal has no regular transactions on the 1st,
-the default report start date could exclude that budget goal, which can
-be a little surprising. Eg here the default report period is just the
-day of 2020-01-15:
+With small data, or when starting out,
+some of the generated [budget goal transaction dates](hledger.md#period-expressions)
+might fall outside the [report periods](hledger.md#report-start--end-date).
+Eg with the following journal and report, the first period appears to have no `expenses:food` budget.
+(Also the `<unbudgeted>` account should be excluded by the `expenses` query, but isn't.):
 
 ```journal
 ~ monthly in 2020
@@ -639,119 +690,30 @@ day of 2020-01-15:
   expenses:food    $400
   assets:checking
 ```
-```shell
-$ hledger bal expenses --budget
+
+```cli
+$ hledger bal --budget expenses
 Budget performance in 2020-01-15:
 
-              || 2020-01-15 
-==============++============
- <unbudgeted> ||       $400 
---------------++------------
-              ||       $400 
+               ||         2020-01-15 
+===============++====================
+ <unbudgeted>  || $400               
+ expenses:food ||    0 [ 0% of $500] 
+---------------++--------------------
+               || $400 [80% of $500] 
 ```
 
-To avoid this, specify the budget report's period, or at least the start date,
-with `-b`/`-e`/`-p`/`date:`, to ensure it includes the budget goal transactions
-(periodic transactions) that you want. Eg, adding `-b 2020/1/1` to the above:
 
-```shell
-$ hledger bal expenses --budget -b 2020/1/1
-Budget performance in 2020-01-01..2020-01-15:
+In this case, the budget goal transactions are generated on first
+days of of month (this can be seen with 
+`hledger print --forecast tag:generated expenses`).
+Whereas the report period defaults to just the 15th day of january
+(this can be seen from the report table's column headings).
 
-               || 2020-01-01..2020-01-15 
-===============++========================
- expenses:food ||     $400 [80% of $500] 
----------------++------------------------
-               ||     $400 [80% of $500] 
-```
-
-#### Budgets and subaccounts
-
-You can add budgets to any account in your account hierarchy. If you have budgets on both parent account and some of its children, then budget(s)
-of the child account(s) would be added to the budget of their parent, much like account balances behave.
-
-In the most simple case this means that once you add a budget to any account, all its parents would have budget as well. 
-
-To illustrate this, consider the following budget:
-```
-~ monthly from 2019/01
-    expenses:personal             $1,000.00
-    expenses:personal:electronics    $100.00
-    liabilities
-```
-
-With this, monthly budget for electronics is defined to be \$100 and budget for personal expenses is an additional $1000, which implicitly means
-that budget for both `expenses:personal` and `expenses` is \$1100.
-
-Transactions in `expenses:personal:electronics` will be counted both towards its \$100 budget and \$1100 of `expenses:personal` , and transactions in any other subaccount of `expenses:personal` would be
-counted towards only towards the budget of `expenses:personal`.
-
-For example, let's consider these transactions:
-```journal
-~ monthly from 2019/01
-    expenses:personal             $1,000.00
-    expenses:personal:electronics    $100.00
-    liabilities
-
-2019/01/01 Google home hub
-    expenses:personal:electronics          $90.00
-    liabilities                           $-90.00
-
-2019/01/02 Phone screen protector
-    expenses:personal:electronics:upgrades          $10.00
-    liabilities
-
-2019/01/02 Weekly train ticket
-    expenses:personal:train tickets       $153.00
-    liabilities
-
-2019/01/03 Flowers
-    expenses:personal          $30.00
-    liabilities
-```
-
-As you can see, we have transactions in `expenses:personal:electronics:upgrades` and `expenses:personal:train tickets`, and since both of these accounts are without explicitly defined budget,
-these transactions would be counted towards budgets of `expenses:personal:electronics` and `expenses:personal` accordingly:
-
-```shell
-$ hledger balance --budget -M
-Budget performance in 2019/01:
-
-                               ||                           Jan 
-===============================++===============================
- expenses                      ||  $283.00 [  26% of  $1100.00] 
- expenses:personal             ||  $283.00 [  26% of  $1100.00] 
- expenses:personal:electronics ||  $100.00 [ 100% of   $100.00] 
- liabilities                   || $-283.00 [  26% of $-1100.00] 
--------------------------------++-------------------------------
-                               ||        0 [                 0] 
-```
-
-And with `--empty`, we can get a better picture of budget allocation and consumption:
-```shell
-$ hledger balance --budget -M --empty
-Budget performance in 2019/01:
-
-                                        ||                           Jan 
-========================================++===============================
- expenses                               ||  $283.00 [  26% of  $1100.00] 
- expenses:personal                      ||  $283.00 [  26% of  $1100.00] 
- expenses:personal:electronics          ||  $100.00 [ 100% of   $100.00] 
- expenses:personal:electronics:upgrades ||   $10.00                      
- expenses:personal:train tickets        ||  $153.00                      
- liabilities                            || $-283.00 [  26% of $-1100.00] 
-----------------------------------------++-------------------------------
-                                        ||        0 [                 0] 
-```
+To fix this kind of thing, be more explicit about the report period (and/or the periodic rules' dates).
+In this case, adding `-b 2020` does the trick.
 
 #### Selecting budget goals
-
-The budget report evaluates periodic transaction rules to generate special "goal transactions",
-which generate the goal amounts for each account in each report subperiod.
-When troubleshooting, you can use `print --forecast` to show these as forecasted transactions:
-```shell
-$ hledger print --forecast=BUDGETREPORTPERIOD tag:generated
-```
 
 By default, the budget report uses all available periodic transaction rules to generate goals.
 This includes rules with a different report interval from your report. 
@@ -762,59 +724,36 @@ You can select a subset of periodic rules by providing an argument to the `--bud
 `--budget=DESCPAT` will match all periodic rules whose description contains DESCPAT, 
 a case-insensitive substring (not a regular expression or query).
 This means you can give your periodic rules descriptions
-(remember that [two spaces are needed](#two-spaces-between-period-expression-and-description)),
+(remember that [two spaces are needed](#two-spaces-between-period-expression-and-description) between period expression and description),
 and then select from multiple budgets defined in your journal.
 
-#### Budget vs forecast
+#### Budgeting vs forecasting
 
-`hledger --forecast ...` and `hledger balance --budget ...` are separate features,
-though both of them use the periodic transaction rules defined in the journal,
-and both of them generate temporary transactions for reporting purposes
-("forecast transactions" and "budget goal transactions", respectively).
-You can use both features at the same time if you want.
-Here are some differences between them, as of hledger 1.29:
+`--forecast` and `--budget` both use the periodic transaction rules in the journal to generate temporary transactions for reporting purposes.
+However they are separate features - though you can use both at the same time if you want.
+Here are some differences between them:
 
-CLI:
+| --forecast | --budget |
+|------------|----------|
+| is a general option; it enables forecasting with all reports | is a balance command option; it selects the balance report's budget mode |
+| generates visible transactions which appear in reports | generates invisible transactions which produce goal amounts |
+| generates forecast transactions from after the last regular transaction, to the end of the report period; or with an argument `--forecast=PERIODEXPR` generates them throughout the specified period, both optionally restricted by periods specified in the periodic transaction rules | generates budget goal transactions throughout the report period, optionally restricted by periods specified in the periodic transaction rules |
+| uses all periodic rules | uses all periodic rules; or with an argument `--budget=DESCPAT` uses just the rules matched by DESCPAT |
 
-- --forecast is a general hledger option, usable with any command
-- --budget is a `balance` command option, usable only with that command.
+### Balance report layout
 
-Visibility of generated transactions:
-
-- forecast transactions are visible in any report, like ordinary transactions
-- budget goal transactions are invisible except for the goal amounts they produce in --budget reports.
-
-Periodic transaction rules:
-
-- --forecast uses all available periodic transaction rules
-- --budget uses all periodic rules (`--budget`) or a selected subset (`--budget=DESCPAT`)
-
-Period of generated transactions:
-
-- --forecast generates forecast transactions
-  - from after the last regular transaction to the end of the report period (`--forecast`)
-  - or, during a specified period (`--forecast=PERIODEXPR`)
-  - possibly further restricted by a period specified in the periodic transaction rule
-  - and always restricted within the bounds of the report period
-- --budget generates budget goal transactions
-  - throughout the report period
-  - possibly restricted by a period specified in the periodic transaction rule.
-
-
-### Data layout
-
-The `--layout` option affects how balance reports show
-multi-commodity amounts and commodity symbols, which can improve readability. 
-It can also normalise the data for easy consumption by other programs.
+The `--layout` option affects how `balance` and the other balance-like commands show multi-commodity amounts and commodity symbols.
+It can improve readability, for humans and/or machines (other software).
 It has four possible values:
 
 - `--layout=wide[,WIDTH]`: commodities are shown on a single line, optionally elided to WIDTH
 - `--layout=tall`: each commodity is shown on a separate line
 - `--layout=bare`: commodity symbols are in their own column, amounts are bare numbers
-- `--layout=tidy`: data is normalised to easily-consumed "tidy" form, with one row per data value
+- `--layout=tidy`: data is normalised to easily-consumed "tidy" form, with one row per data value.
+  (This one is currently supported only by the `balance` command.)
 
-Here are the `--layout` modes supported by each [output format](#output-format);
-note only CSV output supports all of them:
+Here are the `--layout` modes supported by each [output format](#output-format)
+Only CSV output supports all of them:
 
 | -    | txt | csv | html | json | sql |
 |------|-----|-----|------|------|-----|
@@ -825,114 +764,134 @@ note only CSV output supports all of them:
 
 Examples:
 
-- Wide layout. With many commodities, reports can be very wide:
-  ```shell
-  $ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -T -Y --layout=wide
-  Balance changes in 2012-01-01..2014-12-31:
-  
-                    ||                                          2012                                                     2013                                             2014                                                      Total 
-  ==================++====================================================================================================================================================================================================================
-   Assets:US:ETrade || 10.00 ITOT, 337.18 USD, 12.00 VEA, 106.00 VHT  70.00 GLD, 18.00 ITOT, -98.12 USD, 10.00 VEA, 18.00 VHT  -11.00 ITOT, 4881.44 USD, 14.00 VEA, 170.00 VHT  70.00 GLD, 17.00 ITOT, 5120.50 USD, 36.00 VEA, 294.00 VHT 
-  ------------------++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-                    || 10.00 ITOT, 337.18 USD, 12.00 VEA, 106.00 VHT  70.00 GLD, 18.00 ITOT, -98.12 USD, 10.00 VEA, 18.00 VHT  -11.00 ITOT, 4881.44 USD, 14.00 VEA, 170.00 VHT  70.00 GLD, 17.00 ITOT, 5120.50 USD, 36.00 VEA, 294.00 VHT 
-  ```
+#### Wide layout
+With many commodities, reports can be very wide:
+```cli
+$ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -T -Y --layout=wide
+Balance changes in 2012-01-01..2014-12-31:
 
-- Limited wide layout. A width limit reduces the width, but some commodities will be hidden:
-  ```shell  
-  $ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -T -Y --layout=wide,32
-  Balance changes in 2012-01-01..2014-12-31:
-  
-                    ||                             2012                             2013                   2014                            Total 
-  ==================++===========================================================================================================================
-   Assets:US:ETrade || 10.00 ITOT, 337.18 USD, 2 more..  70.00 GLD, 18.00 ITOT, 3 more..  -11.00 ITOT, 3 more..  70.00 GLD, 17.00 ITOT, 3 more.. 
-  ------------------++---------------------------------------------------------------------------------------------------------------------------
-                    || 10.00 ITOT, 337.18 USD, 2 more..  70.00 GLD, 18.00 ITOT, 3 more..  -11.00 ITOT, 3 more..  70.00 GLD, 17.00 ITOT, 3 more.. 
-  ```
+                  ||                                          2012                                                     2013                                             2014                                                      Total 
+==================++====================================================================================================================================================================================================================
+ Assets:US:ETrade || 10.00 ITOT, 337.18 USD, 12.00 VEA, 106.00 VHT  70.00 GLD, 18.00 ITOT, -98.12 USD, 10.00 VEA, 18.00 VHT  -11.00 ITOT, 4881.44 USD, 14.00 VEA, 170.00 VHT  70.00 GLD, 17.00 ITOT, 5120.50 USD, 36.00 VEA, 294.00 VHT 
+------------------++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                  || 10.00 ITOT, 337.18 USD, 12.00 VEA, 106.00 VHT  70.00 GLD, 18.00 ITOT, -98.12 USD, 10.00 VEA, 18.00 VHT  -11.00 ITOT, 4881.44 USD, 14.00 VEA, 170.00 VHT  70.00 GLD, 17.00 ITOT, 5120.50 USD, 36.00 VEA, 294.00 VHT 
+```
 
-- Tall layout. Each commodity gets a new line (may be different in each column), and account names are repeated:
-  ```shell
-  $ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -T -Y --layout=tall
-  Balance changes in 2012-01-01..2014-12-31:
-  
-                    ||       2012        2013         2014        Total 
-  ==================++==================================================
-   Assets:US:ETrade || 10.00 ITOT   70.00 GLD  -11.00 ITOT    70.00 GLD 
-   Assets:US:ETrade || 337.18 USD  18.00 ITOT  4881.44 USD   17.00 ITOT 
-   Assets:US:ETrade ||  12.00 VEA  -98.12 USD    14.00 VEA  5120.50 USD 
-   Assets:US:ETrade || 106.00 VHT   10.00 VEA   170.00 VHT    36.00 VEA 
-   Assets:US:ETrade ||              18.00 VHT                294.00 VHT 
-  ------------------++--------------------------------------------------
-                    || 10.00 ITOT   70.00 GLD  -11.00 ITOT    70.00 GLD 
-                    || 337.18 USD  18.00 ITOT  4881.44 USD   17.00 ITOT 
-                    ||  12.00 VEA  -98.12 USD    14.00 VEA  5120.50 USD 
-                    || 106.00 VHT   10.00 VEA   170.00 VHT    36.00 VEA 
-                    ||              18.00 VHT                294.00 VHT 
-  ```
+A width limit reduces the width, but some commodities will be hidden:
+```cli  
+$ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -T -Y --layout=wide,32
+Balance changes in 2012-01-01..2014-12-31:
 
-- Bare layout. Commodity symbols are kept in one column, each commodity gets its own report row, account names are repeated:
-  ```shell
-  $ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -T -Y --layout=bare
-  Balance changes in 2012-01-01..2014-12-31:
-  
-                    || Commodity    2012    2013     2014    Total 
-  ==================++=============================================
-   Assets:US:ETrade || GLD             0   70.00        0    70.00 
-   Assets:US:ETrade || ITOT        10.00   18.00   -11.00    17.00 
-   Assets:US:ETrade || USD        337.18  -98.12  4881.44  5120.50 
-   Assets:US:ETrade || VEA         12.00   10.00    14.00    36.00 
-   Assets:US:ETrade || VHT        106.00   18.00   170.00   294.00 
-  ------------------++---------------------------------------------
-                    || GLD             0   70.00        0    70.00 
-                    || ITOT        10.00   18.00   -11.00    17.00 
-                    || USD        337.18  -98.12  4881.44  5120.50 
-                    || VEA         12.00   10.00    14.00    36.00 
-                    || VHT        106.00   18.00   170.00   294.00 
-  ```
+                  ||                             2012                             2013                   2014                            Total 
+==================++===========================================================================================================================
+ Assets:US:ETrade || 10.00 ITOT, 337.18 USD, 2 more..  70.00 GLD, 18.00 ITOT, 3 more..  -11.00 ITOT, 3 more..  70.00 GLD, 17.00 ITOT, 3 more.. 
+------------------++---------------------------------------------------------------------------------------------------------------------------
+                  || 10.00 ITOT, 337.18 USD, 2 more..  70.00 GLD, 18.00 ITOT, 3 more..  -11.00 ITOT, 3 more..  70.00 GLD, 17.00 ITOT, 3 more.. 
+```
 
-- Bare layout also affects [CSV output](#output-format),
-  which is useful for producing data that is easier to consume, eg for making charts:
-  ```shell
-  $ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -O csv --layout=bare
-  "account","commodity","balance"
-  "Assets:US:ETrade","GLD","70.00"
-  "Assets:US:ETrade","ITOT","17.00"
-  "Assets:US:ETrade","USD","5120.50"
-  "Assets:US:ETrade","VEA","36.00"
-  "Assets:US:ETrade","VHT","294.00"
-  "total","GLD","70.00"
-  "total","ITOT","17.00"
-  "total","USD","5120.50"
-  "total","VEA","36.00"
-  "total","VHT","294.00"
-  ```
+#### Tall layout
+Each commodity gets a new line (may be different in each column), and account names are repeated:
+```cli
+$ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -T -Y --layout=tall
+Balance changes in 2012-01-01..2014-12-31:
 
-- Tidy layout produces normalised "tidy data", where every variable
-  has its own column and each row represents a single data point.
-  See <https://cran.r-project.org/web/packages/tidyr/vignettes/tidy-data.html> for more.
-  This is the easiest kind of data for other software to consume.
-  Here's how it looks:
-  
-  ```shell
-  $ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -Y -O csv --layout=tidy
-  "account","period","start_date","end_date","commodity","value"
-  "Assets:US:ETrade","2012","2012-01-01","2012-12-31","GLD","0"
-  "Assets:US:ETrade","2012","2012-01-01","2012-12-31","ITOT","10.00"
-  "Assets:US:ETrade","2012","2012-01-01","2012-12-31","USD","337.18"
-  "Assets:US:ETrade","2012","2012-01-01","2012-12-31","VEA","12.00"
-  "Assets:US:ETrade","2012","2012-01-01","2012-12-31","VHT","106.00"
-  "Assets:US:ETrade","2013","2013-01-01","2013-12-31","GLD","70.00"
-  "Assets:US:ETrade","2013","2013-01-01","2013-12-31","ITOT","18.00"
-  "Assets:US:ETrade","2013","2013-01-01","2013-12-31","USD","-98.12"
-  "Assets:US:ETrade","2013","2013-01-01","2013-12-31","VEA","10.00"
-  "Assets:US:ETrade","2013","2013-01-01","2013-12-31","VHT","18.00"
-  "Assets:US:ETrade","2014","2014-01-01","2014-12-31","GLD","0"
-  "Assets:US:ETrade","2014","2014-01-01","2014-12-31","ITOT","-11.00"
-  "Assets:US:ETrade","2014","2014-01-01","2014-12-31","USD","4881.44"
-  "Assets:US:ETrade","2014","2014-01-01","2014-12-31","VEA","14.00"
-  "Assets:US:ETrade","2014","2014-01-01","2014-12-31","VHT","170.00"
-  ```
+                  ||       2012        2013         2014        Total 
+==================++==================================================
+ Assets:US:ETrade || 10.00 ITOT   70.00 GLD  -11.00 ITOT    70.00 GLD 
+ Assets:US:ETrade || 337.18 USD  18.00 ITOT  4881.44 USD   17.00 ITOT 
+ Assets:US:ETrade ||  12.00 VEA  -98.12 USD    14.00 VEA  5120.50 USD 
+ Assets:US:ETrade || 106.00 VHT   10.00 VEA   170.00 VHT    36.00 VEA 
+ Assets:US:ETrade ||              18.00 VHT                294.00 VHT 
+------------------++--------------------------------------------------
+                  || 10.00 ITOT   70.00 GLD  -11.00 ITOT    70.00 GLD 
+                  || 337.18 USD  18.00 ITOT  4881.44 USD   17.00 ITOT 
+                  ||  12.00 VEA  -98.12 USD    14.00 VEA  5120.50 USD 
+                  || 106.00 VHT   10.00 VEA   170.00 VHT    36.00 VEA 
+                  ||              18.00 VHT                294.00 VHT 
+```
 
-### Useful balance reports
+#### Bare layout
+Commodity symbols are kept in one column, each commodity has its own row,
+amounts are bare numbers, account names are repeated:
+```cli
+$ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -T -Y --layout=bare
+Balance changes in 2012-01-01..2014-12-31:
+
+                  || Commodity    2012    2013     2014    Total 
+==================++=============================================
+ Assets:US:ETrade || GLD             0   70.00        0    70.00 
+ Assets:US:ETrade || ITOT        10.00   18.00   -11.00    17.00 
+ Assets:US:ETrade || USD        337.18  -98.12  4881.44  5120.50 
+ Assets:US:ETrade || VEA         12.00   10.00    14.00    36.00 
+ Assets:US:ETrade || VHT        106.00   18.00   170.00   294.00 
+------------------++---------------------------------------------
+                  || GLD             0   70.00        0    70.00 
+                  || ITOT        10.00   18.00   -11.00    17.00 
+                  || USD        337.18  -98.12  4881.44  5120.50 
+                  || VEA         12.00   10.00    14.00    36.00 
+                  || VHT        106.00   18.00   170.00   294.00 
+```
+
+Bare layout also affects [CSV output](#output-format),
+which is useful for producing data that is easier to consume, eg for making charts:
+```cli
+$ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -O csv --layout=bare
+"account","commodity","balance"
+"Assets:US:ETrade","GLD","70.00"
+"Assets:US:ETrade","ITOT","17.00"
+"Assets:US:ETrade","USD","5120.50"
+"Assets:US:ETrade","VEA","36.00"
+"Assets:US:ETrade","VHT","294.00"
+"Total:","GLD","70.00"
+"Total:","ITOT","17.00"
+"Total:","USD","5120.50"
+"Total:","VEA","36.00"
+"Total:","VHT","294.00"
+```
+
+Bare layout will sometimes display an extra row for the no-symbol commodity,
+because of zero amounts (hledger treats zeroes as commodity-less, usually).
+This can break `hledger-bar` confusingly (workaround: add a `cur:` query to exclude
+the no-symbol row).
+
+#### Tidy layout
+This produces normalised "tidy data" (see <https://cran.r-project.org/web/packages/tidyr/vignettes/tidy-data.html>)
+where every variable has its own column and each row represents a single data point.
+This is the easiest kind of data for other software to consume:
+
+```cli
+$ hledger -f examples/bcexample.hledger bal assets:us:etrade -3 -Y -O csv --layout=tidy
+"account","period","start_date","end_date","commodity","value"
+"Assets:US:ETrade","2012","2012-01-01","2012-12-31","GLD","0"
+"Assets:US:ETrade","2012","2012-01-01","2012-12-31","ITOT","10.00"
+"Assets:US:ETrade","2012","2012-01-01","2012-12-31","USD","337.18"
+"Assets:US:ETrade","2012","2012-01-01","2012-12-31","VEA","12.00"
+"Assets:US:ETrade","2012","2012-01-01","2012-12-31","VHT","106.00"
+"Assets:US:ETrade","2013","2013-01-01","2013-12-31","GLD","70.00"
+"Assets:US:ETrade","2013","2013-01-01","2013-12-31","ITOT","18.00"
+"Assets:US:ETrade","2013","2013-01-01","2013-12-31","USD","-98.12"
+"Assets:US:ETrade","2013","2013-01-01","2013-12-31","VEA","10.00"
+"Assets:US:ETrade","2013","2013-01-01","2013-12-31","VHT","18.00"
+"Assets:US:ETrade","2014","2014-01-01","2014-12-31","GLD","0"
+"Assets:US:ETrade","2014","2014-01-01","2014-12-31","ITOT","-11.00"
+"Assets:US:ETrade","2014","2014-01-01","2014-12-31","USD","4881.44"
+"Assets:US:ETrade","2014","2014-01-01","2014-12-31","VEA","14.00"
+"Assets:US:ETrade","2014","2014-01-01","2014-12-31","VHT","170.00"
+```
+
+### Balance report output
+
+As noted in [Output format](#output-format),
+if you choose HTML output (by using `-O html` or `-o somefile.html`),
+you can create a `hledger.css` file in the same directory to customise the report's appearance.
+
+The HTML and [FODS] output formats can generate hyperlinks to a `hledger-web` register view for each account and period.
+E.g. if your `hledger-web` server is reachable at `http://localhost:5000`
+then you might run the `balance` command with the extra option `--base-url=http://localhost:5000`.
+You can also produce relative links, like `--base-url="some/path"` or `--base-url=""`.)
+
+
+### Some useful balance reports
 
 Some frequently used `balance` options/reports are:
 
@@ -970,3 +929,4 @@ Also:
 - `bal investments --valuechange -D date:lastweek amt:'>1000' -STA [--invert]`\
   Show top gainers [or losers] last week
 
+[FODS]: https://en.wikipedia.org/wiki/OpenDocument

@@ -1,21 +1,22 @@
 #!/usr/bin/env stack
 -- stack runghc --verbosity error --package hledger
 -- stack runghc --verbosity error --package hledger --package hledger-lib --package text --package safe 
--- stack script --compile --resolver lts-20.13 --verbosity error --package hledger --package text
--- stack script --compile --resolver lts-20.13 --verbosity error --package hledger --package hledger-lib --package text --package safe
+-- stack script --compile --resolver nightly-2025-09-30 --verbosity error --package hledger --package text
+-- stack script --compile --resolver nightly-2025-09-30 --verbosity error --package hledger --package hledger-lib --package text --package safe
 -- The topmost stack command above is used to run this script.
 -- stack script uses released hledger, stack runghc uses local hledger source.
 -- This script currently requires local hledger source, for Hledger.Cli.Script.
 ------------------------------------78----------------------------------------
 
-{-# LANGUAGE OverloadedStrings, PackageImports #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
 
 import Hledger.Cli.Script
 import qualified "text" Data.Text as T
 import qualified "text" Data.Text.IO as T
 
 cmdmode = hledgerCommandMode (unlines
-    -- Command name, then --help text, then _FLAGS; empty help lines get stripped:
+    -- Command name, then --help text. Note, empty help lines get stripped.
   ["register-match"
   ,"Show the register item(s) with maximum (or with --invert, minimum) balance."
   ,"Usage: hledger-register-max [REGISTERARGS]"
@@ -25,14 +26,12 @@ cmdmode = hledgerCommandMode (unlines
   ,"$ hledger-register-max -f examples/bcexample.hledger -H checking"
   ,"2013-01-03 Payroll  Assets:US:BofA:Checking  1350.60 USD  8799.22 USD"
     ------------------------------------78----------------------------------------
-  ,""
-  ,"_FLAGS"
   ])
   [] [generalflagsgroup1] [] ([], Just $ argsFlag "[ARGS]")  -- or Nothing
 
 main = do
   opts@CliOpts{reportspec_=rspec} <- getHledgerCliOpts cmdmode
-  withJournalDo opts $ \j -> do
+  withJournal opts $ \j -> do
     let
       r = postingsReport rspec j
       maxbal = fifth5 $ maximumBy (comparing fifth5) r

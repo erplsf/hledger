@@ -23,11 +23,11 @@ import Control.Monad.Except (ExceptT, mapExceptT)
 import Data.Foldable (find, for_)
 import Data.List (elemIndex)
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import System.FilePath (takeFileName)
 import Text.Blaze ((!), textValue)
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
+import Text.Blaze.Html5 qualified as H
+import Text.Blaze.Html5.Attributes qualified as A
 import Text.Blaze.Internal (preEscapedString)
 import Text.Hamlet (hamletFile)
 import Text.Printf (printf)
@@ -36,7 +36,8 @@ import Yesod
 import Hledger
 import Hledger.Cli.Utils (writeFileWithBackupIfChanged)
 import Hledger.Web.Settings (manualurl)
-import qualified Hledger.Query as Query
+import Hledger.Query qualified as Query
+
 
 journalFile404 :: FilePath -> Journal -> HandlerFor m (FilePath, Text)
 journalFile404 f j =
@@ -66,7 +67,7 @@ writeJournalTextIfValidAndChanged f t = mapExceptT liftIO $ do
   -- formatdirectivep, #1194) writeFileWithBackupIfChanged require them.
   -- XXX klunky. Any equivalent of "hSetNewlineMode h universalNewlineMode" for form posts ?
   let t' = T.replace "\r" "" t
-  j <- readJournal definputopts (Just f) t'
+  j <- readJournal definputopts (Just f) =<< liftIO (textToHandle t')
   _ <- liftIO $ j `seq` writeFileWithBackupIfChanged f t'  -- Only write backup if the journal didn't error
   return ()
 
@@ -82,9 +83,9 @@ balanceReportAsHtml (journalR, registerR) here hideEmpty j qparam qopts (items, 
   where
     l = ledgerFromJournal Any j
     indent a = preEscapedString $ concat $ replicate (2 + 2 * a) "&nbsp;"
-    hasSubAccounts acct = maybe True (not . null . asubs) (ledgerAccount l acct)
+    hasSubAccounts acct = maybe True (not . null . asubs) $ ledgerAccount l acct
     isInterestingAccount acct = maybe False isInteresting $ ledgerAccount l acct
-      where isInteresting a = not (mixedAmountLooksZero (aebalance a)) || any isInteresting (asubs a)
+      where isInteresting a = not (all (mixedAmountLooksZero . bdexcludingsubs) . pdperiods $ adata a) || any isInteresting (asubs a)
     matchesAcctSelector acct = Just True == ((`matchesAccount` acct) <$> inAccountQuery qopts)
 
 accountQuery :: AccountName -> Text
@@ -95,7 +96,7 @@ accountOnlyQuery = ("inacctonly:" <>) . quoteIfSpaced
 
 mixedAmountAsHtml :: MixedAmount -> HtmlUrl a
 mixedAmountAsHtml b _ =
-  for_ (lines (showMixedAmountWithoutPrice False b)) $ \t -> do
+  for_ (lines (showMixedAmountWith noCostFmt{displayZeroCommodity=True} b)) $ \t -> do
     H.span ! A.class_ c $ toHtml t
     H.br
   where

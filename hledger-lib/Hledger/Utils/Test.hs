@@ -25,21 +25,21 @@ import Control.Monad.Except (ExceptT(..), liftEither, runExceptT, withExceptT)
 import Control.Monad.State.Strict (StateT, evalStateT, execStateT)
 import Data.Default (Default(..))
 import Data.List (isInfixOf)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Test.Tasty hiding (defaultMain)
 import Test.Tasty.HUnit
 -- import Test.Tasty.QuickCheck as QC
 -- import Test.Tasty.SmallCheck as SC
 import Text.Megaparsec
-import Text.Megaparsec.Custom
+
+import Hledger.Utils.IO (pshow)
+import Hledger.Utils.Parse
   ( HledgerParseErrorData,
     FinalParseError,
     attachSource,
     customErrorBundlePretty,
     finalErrorBundlePretty,
   )
-
-import Hledger.Utils.IO (pshow)
 
 -- * tasty helpers
 

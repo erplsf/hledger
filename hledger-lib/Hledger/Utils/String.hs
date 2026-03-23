@@ -3,6 +3,7 @@
 module Hledger.Utils.String (
  takeEnd,
  -- * misc
+ capitalise,
  lowercase,
  uppercase,
  underline,
@@ -14,7 +15,6 @@ module Hledger.Utils.String (
  -- quotechars,
  -- whitespacechars,
  words',
- unwords',
  stripAnsi,
  -- * single-line layout
  strip,
@@ -39,7 +39,8 @@ module Hledger.Utils.String (
 
 import Data.Char (isSpace, toLower, toUpper)
 import Data.List (intercalate, dropWhileEnd)
-import qualified Data.Text as T
+import Data.Text qualified as T
+import Safe (headErr, tailErr)
 import Text.Megaparsec ((<|>), between, many, noneOf, sepBy)
 import Text.Megaparsec.Char (char)
 import Text.Printf (printf)
@@ -55,6 +56,10 @@ takeEnd n l = go (drop n l) l
     go (_:xs) (_:ys) = go xs ys
     go []     r      = r
     go _      []     = []
+
+capitalise :: String -> String
+capitalise (c:cs) = toUpper c : cs
+capitalise s = s
 
 lowercase, uppercase :: String -> String
 lowercase = map toLower
@@ -159,32 +164,31 @@ singleQuote s = "'"++s++"'"
 -- >>> quoteForCommandLine "\""
 -- "'\"'"
 -- >>> quoteForCommandLine "$"
--- "'\\$'"
+-- "'$'"
 --
 quoteForCommandLine :: String -> String
 quoteForCommandLine s
-  | any (`elem` s) (quotechars++whitespacechars++shellchars) = singleQuote $ quoteShellChars s
+  | any (`elem` s) (quotechars++whitespacechars++shellchars) = singleQuote $ escapeSingleQuotes s
   | otherwise = s
 
--- | Try to backslash-quote common shell-significant characters in this string.
--- Doesn't handle single quotes, & probably others.
-quoteShellChars :: String -> String
-quoteShellChars = concatMap escapeShellChar
+-- | Escape single quotes appearing in a string we're protecting by wrapping in single quotes
+escapeSingleQuotes :: String -> String
+escapeSingleQuotes = concatMap escapeSingleQuote
   where
-    escapeShellChar c | c `elem` shellchars = ['\\',c]
-    escapeShellChar c = [c]
+    escapeSingleQuote c | c `elem` "'" = ['\\',c]
+    escapeSingleQuote c = [c]
 
 quotechars, whitespacechars, redirectchars, shellchars :: [Char]
 quotechars      = "'\""
 whitespacechars = " \t\n\r"
 redirectchars   = "<>"
-shellchars      = "<>(){}[]$7?#!~`"
+shellchars      = "<>(){}[]$&?#!~`*+\\"
 
 -- | Quote-aware version of words - don't split on spaces which are inside quotes.
 -- NB correctly handles "a'b" but not "''a''". Can raise an error if parsing fails.
 words' :: String -> [String]
 words' "" = []
-words' s  = map stripquotes $ fromparse $ parsewithString p s
+words' s  = map stripquotes $ fromparse $ parsewithString p s  -- PARTIAL
     where
       p = (singleQuotedPattern <|> doubleQuotedPattern <|> patterns) `sepBy` skipNonNewlineSpaces1
           -- eof
@@ -192,18 +196,14 @@ words' s  = map stripquotes $ fromparse $ parsewithString p s
       singleQuotedPattern = between (char '\'') (char '\'') (many $ noneOf "'")
       doubleQuotedPattern = between (char '"') (char '"') (many $ noneOf "\"")
 
--- | Quote-aware version of unwords - single-quote strings which contain whitespace
-unwords' :: [String] -> String
-unwords' = unwords . map quoteIfNeeded
-
 -- | Strip one matching pair of single or double quotes on the ends of a string.
 stripquotes :: String -> String
-stripquotes s = if isSingleQuoted s || isDoubleQuoted s then init $ tail s else s
+stripquotes s = if isSingleQuoted s || isDoubleQuoted s then init $ tailErr s else s  -- PARTIAL tailErr won't fail because isDoubleQuoted
 
-isSingleQuoted s@(_:_:_) = head s == '\'' && last s == '\''
+isSingleQuoted s@(_:_:_) = headErr s == '\'' && last s == '\''  -- PARTIAL headErr, last will succeed because of pattern
 isSingleQuoted _ = False
 
-isDoubleQuoted s@(_:_:_) = head s == '"' && last s == '"'
+isDoubleQuoted s@(_:_:_) = headErr s == '"' && last s == '"'  -- PARTIAL headErr, last will succeed because of pattern
 isDoubleQuoted _ = False
 
 -- Functions below treat wide (eg CJK) characters as double-width.
@@ -237,5 +237,5 @@ strWidth = realLength
 stripAnsi :: String -> String
 stripAnsi s = either err id $ regexReplace ansire "" s
  where
-   err    = error "stripAnsi: invalid replacement pattern"      -- PARTIAL, shouldn't happen
+   err    = errorWithoutStackTrace "stripAnsi: invalid replacement pattern"      -- PARTIAL, shouldn't happen
    ansire = toRegex' $ T.pack "\ESC\\[([0-9]+;)*([0-9]+)?[ABCDHJKfmsu]"  -- PARTIAL, should succeed

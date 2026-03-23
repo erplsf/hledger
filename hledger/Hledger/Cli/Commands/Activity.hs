@@ -19,7 +19,7 @@ import Hledger.Cli.CliOptions
 activitymode = hledgerCommandMode
   $(embedFileRelative "Hledger/Cli/Commands/Activity.txt")
   []
-  [generalflagsgroup1]
+  cligeneralflagsgroups1
   hiddenflags
   ([], Just $ argsFlag "[QUERY]")
 
@@ -34,16 +34,18 @@ showHistogram :: ReportSpec -> Journal -> String
 showHistogram rspec@ReportSpec{_rsQuery=q} j =
     concatMap (printDayWith countBar) spanps
   where
-    spans = filter (DateSpan Nothing Nothing /=) . snd . reportSpan j $ case rspec ^. interval of
+    mspans = snd . reportSpan j $ case rspec ^. interval of
       NoInterval -> set interval (Days 1) rspec
       _ -> rspec
-    spanps = [(s, filter (isPostingInDateSpan s) ps) | s <- spans]
+    spanps = case mspans of
+      Nothing -> []
+      Just x  -> map (\spn -> (spn, filter (postingInRange spn) ps)) $ dayPartitionToList x
+    postingInRange (b, e) p = postingDate p >= b && postingDate p <= e
     -- same as Register
     -- should count transactions, not postings ?
     -- ps = sortBy (comparing postingDate) $ filterempties $ filter matchapats $ filterdepth $ journalPostings j
     ps = sortOn postingDate $ filter (q `matchesPosting`) $ journalPostings j
 
-printDayWith f (DateSpan (Just b) _, ps) = printf "%s %s\n" (show $ fromEFDay b) (f ps)
-printDayWith _ _ = error "Expected start date for DateSpan"  -- PARTIAL:
+printDayWith f ((b, _), ps) = printf "%s %s\n" (show b) (f ps)
 
 countBar ps = replicate (length ps) barchar

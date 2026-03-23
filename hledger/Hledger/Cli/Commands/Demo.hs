@@ -38,30 +38,35 @@ module Hledger.Cli.Commands.Demo (
  ,demo
 ) where
 
-import Hledger
-import Hledger.Cli.CliOptions
-import System.Exit (exitFailure)
 import Text.Printf
 import Control.Concurrent (threadDelay)
 import System.Process (callProcess)
 import System.IO.Error (catchIOError)
 import Safe (readMay, atMay, headMay)
-import Data.List (isPrefixOf, find, findIndex, isInfixOf)
+import Data.List (isPrefixOf, find, findIndex, isInfixOf, dropWhileEnd)
 import Control.Applicative ((<|>))
 import Data.ByteString as B (ByteString)
 import Data.Maybe
-import qualified Data.ByteString.Char8 as B
+import Data.ByteString.Char8 qualified as B
+import Safe (tailMay)
 import System.IO.Temp (withSystemTempFile)
 import System.IO (hClose)
+import System.Console.CmdArgs.Explicit (flagReq)
+
+import Hledger
+import Hledger.Cli.CliOptions
+import System.Directory (findExecutable)
+import Control.Monad (when)
 
 demos :: [Demo]
 demos = map readDemo [
-  $(embedFileRelative "embeddedfiles/install.cast"),  -- https://asciinema.org/a/567934 Installing hledger from source with hledger-install
-  $(embedFileRelative "embeddedfiles/help.cast"),     -- https://asciinema.org/a/568112 Getting help
-  $(embedFileRelative "embeddedfiles/demo.cast"),     -- https://asciinema.org/a/567944 Watching the built-in demos
+  -- XXX these are confusing, redo
+  -- (embedFileRelative "embeddedfiles/help.cast"),     -- https://asciinema.org/a/568112 Getting help
+  -- (embedFileRelative "embeddedfiles/demo.cast"),     -- https://asciinema.org/a/567944 Watching the built-in demos
   $(embedFileRelative "embeddedfiles/add.cast"),      -- https://asciinema.org/a/567935 The easiest way to start a journal (add)
   $(embedFileRelative "embeddedfiles/print.cast"),    -- https://asciinema.org/a/567936 Show full transactions (print)
-  $(embedFileRelative "embeddedfiles/balance.cast")   -- https://asciinema.org/a/567937 Show account balances and changes (balance)
+  $(embedFileRelative "embeddedfiles/balance.cast"),   -- https://asciinema.org/a/567937 Show account balances and changes (balance)
+  $(embedFileRelative "embeddedfiles/install.cast")  -- https://asciinema.org/a/567934 Installing hledger from source with hledger-install
   ]
 
 -- | An embedded asciinema cast, with some of the metadata separated out.
@@ -74,37 +79,53 @@ data Demo = Demo {
 -- | Command line options for this command.
 demomode = hledgerCommandMode
   $(embedFileRelative "Hledger/Cli/Commands/Demo.txt")
-  []
+  [
+   flagReq  ["speed","s"] (\s opts -> Right $ setopt "speed" s opts) "SPEED"
+    ("playback speed (1 is original speed, .5 is half, 2 is double, etc (default: 2))")
+  ]
   [generalflagsgroup3]
   []
   ([], Just $ argsFlag optsstr)
 
-optsstr = "[NUM|PREFIX|SUBSTR] [-- ASCIINEMAOPTS]"
+optsstr = "[NUM|PREFIX|SUBSTR]"
+-- optsstr = "[NUM|PREFIX|SUBSTR] [-- ASCIINEMAOPTS]"
 usagestr = "Usage: hledger demo " <> optsstr
 
 -- | The demo command.
 demo :: CliOpts -> Journal -> IO ()
 demo CliOpts{rawopts_=rawopts, reportspec_=ReportSpec{_rsQuery=_query}} _j = do
   -- demos <- getCurrentDirectory >>= readDemos
-  let args = listofstringopt "args" rawopts
-  case args of
-    [] -> putStrLn usagestr >> printDemos
+  case listofstringopt "args" rawopts of
+    [] -> putStrLn usagestr >> putStr listDemos
     (a:as) ->
       case findDemo demos a of
-        Nothing -> do
-          putStrLn $ "No demo \"" <> a <> "\" was found."
-          putStrLn usagestr
-          printDemos
-          exitFailure
+        Nothing -> error' $ unlines
+          ["No demo \"" <> a <> "\" was found."
+          ,usagestr
+          ,listDemos
+          ]
         Just (Demo t c) -> do
-          let i = maybe 0 (1+) $ findIndex (\(Demo t2 _) -> t2 == t) demos  -- should succeed
+          -- check if asciinema is installed, first
+          masciinema <- findExecutable "asciinema"
+          when (isNothing masciinema) $ error' "Could not find 'asciinema'; please install that first."
+          let
+            -- try to preserve the original pauses a bit while also moving things along
+            defidlelimit = 10
+            defspeed     = 2
+            speed =
+              case maybestringopt "speed" rawopts of
+                Nothing -> defspeed
+                Just s -> fromMaybe err $ readMay s
+                  where err = error' $ "could not parse --speed " <> s <> ", numeric argument expected"
+            idx = maybe 0 (1+) $ findIndex (\(Demo t2 _) -> t2 == t) demos  -- should succeed
           mw <- getTerminalWidth
           let line = red' $ replicate w '.' where w = fromMaybe (length t) mw
-          printf "playing: %d) %s\nspace to pause, . to step, ctrl-c to quit\n" i (bold' t)
+          printf "playing: %d) %s\nspace to pause, . to step, ctrl-c to quit\n" idx (bold' t)
           putStrLn line
           putStrLn ""
           threadDelay 1000000
-          runAsciinemaPlay c as
+          -- XXX this used to see asciinema options after --, currently it doesn't
+          runAsciinemaPlay speed defidlelimit c as
           putStrLn ""
           putStrLn line
 
@@ -115,8 +136,7 @@ readDemo content = Demo title content
       where
         readTitle s
           | "\"title\":" `isPrefixOf` s = takeWhile (/='"') $ drop 1 $ lstrip $ drop 8 s
-          | null s = ""
-          | otherwise = readTitle $ tail s
+          | otherwise = maybe "" readTitle $ tailMay s
 
 findDemo :: [Demo] -> String -> Maybe Demo
 findDemo ds s =
@@ -126,19 +146,35 @@ findDemo ds s =
   where
     sl = lowercase s
 
-printDemos :: IO ()
-printDemos = putStrLn $ unlines $
+listDemos :: String
+listDemos = unlines $
   "Demos:" :
   -- "" :
   [show i <> ") " <> bold' t | (i, Demo t _) <- zip [(1::Int)..] demos]
 
--- | Run asciinema play, passing content to its stdin.
-runAsciinemaPlay :: ByteString -> [String] -> IO ()
-runAsciinemaPlay content args =
-  withSystemTempFile "hledger-cast" $ \f h -> do  -- try piping to stdin also
-    B.hPutStrLn h content >> hClose h
-    callProcess "asciinema" ("play" : f : args)
-      `catchIOError` \err -> do
-        putStrLn $ "There was a problem. Is asciinema installed ?\n" <> show err  --  (or PowerSession on Windows)
-        exitFailure
+-- | Run asciinema play with the given speed and idle limit, passing the given content to its stdin.
+runAsciinemaPlay :: Float -> Float -> ByteString -> [String] -> IO ()
+runAsciinemaPlay speed idlelimit content args = do
+  -- XXX try piping to stdin also
+  withSystemTempFile "hledger-cast" $ \f h -> do
+    -- don't add an extra newline here, it breaks asciinema 2.3.0 (#2094).
+    -- XXX we could try harder and strip excess newlines/carriage returns+linefeeds here
+    B.hPutStr h content >> hClose h
+    callProcess "asciinema" (dbg8With (("asciinema: "++).unwords) $ concat [
+       ["play"]
+      ,["-s"<> showwithouttrailingzero speed]
+      ,if idlelimit == 0 then [] else ["-i"<>showwithouttrailingzero idlelimit]
+      ,[f]
+      ,args
+      ])
+    `catchIOError` \err -> do
+      printError $ unlines
+        [""
+        ,show err
+        ,"Running asciinema failed. Trying 'asciinema --version':"
+        ]
+      callProcess "asciinema" ["--version"]
+      `catchIOError` \_ -> error' "This also failed."
+  where
+    showwithouttrailingzero = dropWhileEnd (=='.') . dropWhileEnd (=='0') . show
 

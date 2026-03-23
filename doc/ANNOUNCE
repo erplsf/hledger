@@ -1,43 +1,27 @@
-I'm pleased to announce hledger 1.29 !
+I'm pleased to announce hledger-1.52. Highlights include:
 
-https://github.com/simonmichael/hledger/releases/1.29
-https://hledger.org/install
-https://hledger.org/release-notes.html#hledger-1-29
+Preserve cost basis syntax,
+cost basis export examples,
+faster valuation,
+commodity tags,
+more robust paging,
+fixes.
 
-Highlights:
+- https://github.com/simonmichael/hledger/releases/1.52
+- https://hledger.org/relnotes.html#2026-03-20-hledger-152
+- https://hledger.org/install
 
-Tag checking, 
-flexible multi-period start dates, 
-flexible cost/conversion posting combining,
-new commands list,
-hledger manual reorg,
-easier close command,
-10% more Ledger file compatible.
+#hledger is free, robust, friendly, fast, cross-platform, double-entry, multi-currency, multi-interface, GNU GPL-licensed, #plaintextaccounting software.
+It is built around human-readable, version-controllable, future-proof plain text files.
+The UIs will seem basic at first, but it is powerful, flexible, and fun to use.
 
-Thank you to release contributors Chris Lemaire, Caleb Maclennan,
-Jonathan Dowland, J. B. Rainsberger, Michael Grünewald, Robert Nielsen,
-and Yann Büchau.
+It can help you learn bookkeeping, untangle accounting messes, track your financial status and history, 
+run forecasts, set budgets and saving goals, produce detailed time reports, convert/transform financial data,
+check the correctness of other systems, and create more balance and calm in your life.
+It is a combination of accounting appliance, swiss army penknife, bootcamp/refresher course, and supportive community.
 
-What is hledger ?
-
-- Fast, reliable, free, multicurrency, double-entry, plain text
-  accounting[1] software that runs on unix, mac, windows, and the web
-
-- Built around human-readable, version-controllable plain text files
-
-- Inspired by and largely compatible with Ledger CLI[2];
-  convertible to and from Beancount[3]
-
-- Written in Haskell for correctness and longevity.
-
-For help getting started, or more info, see https://hledger.org
-and join our chat via Matrix or IRC: https://hledger.org/support .
-Newcomers, experts, contributors, sponsors, feedback are welcome!
-
-Aloha,
--Simon
+For more info or help, see https://hledger.org. Beginners, experts, feedback, contributors, sponsors welcome!
 
 
-[1] https://plaintextaccounting.org
-[2] https://ledger-cli.org
-[3] https://beancount.github.io
+
+(Latest source text for announcements & blurbs, truncate as needed.)

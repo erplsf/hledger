@@ -1,5 +1,6 @@
 -- The accounts screen, showing accounts and balances like the CLI balance command.
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
@@ -23,11 +24,15 @@ import Brick.Widgets.List
 import Brick.Widgets.Edit
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
+#if MIN_VERSION_base(4,19,0)
+import Data.List hiding (reverse, (!?))
+#else
 import Data.List hiding (reverse)
+#endif
 import Data.Maybe
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time.Calendar (Day)
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 import Data.Vector ((!?))
 import Graphics.Vty (Event(..),Key(..),Modifier(..), Button (BLeft, BScrollDown, BScrollUp))
 import Lens.Micro.Platform
@@ -43,7 +48,7 @@ import Hledger.UI.UIState
 import Hledger.UI.UIUtils
 import Hledger.UI.UIScreens
 import Hledger.UI.Editor
-import Hledger.UI.ErrorScreen (uiReloadJournal, uiCheckBalanceAssertions, uiReloadJournalIfChanged)
+import Hledger.UI.ErrorScreen (uiReload, uiReloadIfFileChanged, uiToggleBalanceAssertions)
 import Hledger.UI.RegisterScreen (rsCenterSelection)
 import Data.Either (fromRight)
 import Control.Arrow ((>>>))
@@ -64,7 +69,7 @@ asDrawHelper :: UIState -> ReportOpts -> String -> [Widget Name]
 asDrawHelper UIState{aScreen=scr, aopts=uopts, ajournal=j, aMode=mode} ropts scrname =
   dbgui "asDrawHelper" $
   case toAccountsLikeScreen scr of
-    Nothing          -> dbgui "asDrawHelper" $ errorWrongScreenType "draw helper"  -- PARTIAL:
+    Nothing          -> dbgui "asDrawHelper" $ errorWrongScreenType "asDrawHelper"  -- PARTIAL:
     Just (ALS _ ass) -> case mode of
       Help -> [helpDialog, maincontent]
       _    -> [maincontent]
@@ -80,7 +85,7 @@ asDrawHelper UIState{aScreen=scr, aopts=uopts, ajournal=j, aMode=mode} ropts scr
             displayitems = ass ^. assList . listElementsL
 
             acctwidths = V.map (\AccountsScreenItem{..} -> asItemIndentLevel + realLength asItemDisplayAccountName) displayitems
-            balwidths  = V.map (maybe 0 (wbWidth . showMixedAmountB oneLine) . asItemMixedAmount) displayitems
+            balwidths  = V.map (maybe 0 (wbWidth . showMixedAmountB oneLineNoCostFmt) . asItemMixedAmount) displayitems
             preferredacctwidth = V.maximum acctwidths
             totalacctwidthseen = V.sum acctwidths
             preferredbalwidth  = V.maximum balwidths
@@ -88,7 +93,7 @@ asDrawHelper UIState{aScreen=scr, aopts=uopts, ajournal=j, aMode=mode} ropts scr
 
             totalwidthseen = totalacctwidthseen + totalbalwidthseen
             shortfall = preferredacctwidth + preferredbalwidth + 2 - availwidth
-            acctwidthproportion = fromIntegral totalacctwidthseen / fromIntegral totalwidthseen
+            acctwidthproportion = fromIntegral totalacctwidthseen `divideSafe` fromIntegral totalwidthseen
             adjustedacctwidth = min preferredacctwidth . max 15 . round $ acctwidthproportion * fromIntegral (availwidth - 2)  -- leave 2 whitespace for padding
             adjustedbalwidth  = availwidth - 2 - adjustedacctwidth
 
@@ -125,7 +130,7 @@ asDrawHelper UIState{aScreen=scr, aopts=uopts, ajournal=j, aMode=mode} ropts scr
                   ,uiShowStatus copts $ statuses_ ropts
                   ,if real_ ropts then ["real"] else []
                   ]
-                mdepth = depth_ ropts
+                mdepth = dsFlatDepth $ depth_ ropts
                 curidx = case ass ^. assList . listSelectedL of
                           Nothing -> "-"
                           Just i -> show (i + 1)
@@ -169,7 +174,7 @@ asDrawItem (acctwidth, balwidth) selected AccountsScreenItem{..} =
       splitAmounts balBuilder
       where
         balBuilder = maybe mempty showamt asItemMixedAmount
-        showamt = showMixedAmountB oneLine{displayMinWidth=Just balwidth, displayMaxWidth=Just balwidth}
+        showamt = showMixedAmountB oneLineNoCostFmt{displayMinWidth=Just balwidth, displayMaxWidth=Just balwidth}
         balspace = T.replicate (2 + balwidth - wbWidth balBuilder) " "
         splitAmounts = foldr1 (<+>) . intersperse (str ", ") . map renderamt . T.splitOn ", " . wbToText
         renderamt :: T.Text -> Widget Name
@@ -184,7 +189,7 @@ asHandle ev = do
   dbguiEv "asHandle"
   ui0@UIState{aScreen=scr, aMode=mode} <- get'
   case toAccountsLikeScreen scr of
-    Nothing -> dbgui "asHandle" $ errorWrongScreenType "event handler"  -- PARTIAL:
+    Nothing -> dbgui "asHandle" $ errorWrongScreenType "asHandle"  -- PARTIAL:
     Just als@(ALS scons ass) -> do
       -- save the currently selected account, in case we leave this screen and lose the selection
       put' ui0{aScreen=scons ass{_assSelectedAccount=asSelectedAccount ass}}
@@ -220,13 +225,13 @@ asHandleNormalMode (ALS scons ass) ev = do
     VtyEvent (EvKey (KChar 'l') [MCtrl]) -> centerSelection >> redraw     -- C-l: redraw
     VtyEvent (EvKey KEsc        []) -> modify' (resetScreens d)           -- ESC: reset
     VtyEvent (EvKey (KChar c)   []) | c == '?' -> modify' (setMode Help)  -- ?: enter help mode
-
+    
     -- AppEvents come from the system, in --watch mode.
     -- XXX currently they are handled only in Normal mode
     -- XXX be sure we don't leave unconsumed app events piling up
     -- A data file has changed (or the user has pressed g): reload.
     e | e `elem` [AppEvent FileChange, VtyEvent (EvKey (KChar 'g') [])] ->
-      liftIO (uiReloadJournal copts d ui) >>= put'
+      uiReload copts d ui >>= put'
 
     -- The date has changed (and we are viewing a standard period which contained the old date):
     -- adjust the viewed period and regenerate, just in case needed.
@@ -240,9 +245,21 @@ asHandleNormalMode (ALS scons ass) ev = do
     VtyEvent (EvKey k           []) | k `elem` [KBS, KDel] -> modify' (resetFilter >>> regenerateScreens j d)
 
     -- run external programs:
-    VtyEvent (EvKey (KChar 'a') []) -> suspendAndResume $ clearScreen >> setCursorPosition 0 0 >> add copts j >> uiReloadJournalIfChanged copts d j ui
-    VtyEvent (EvKey (KChar 'A') []) -> suspendAndResume $ void (runIadd (journalFilePath j)) >> uiReloadJournalIfChanged copts d j ui
-    VtyEvent (EvKey (KChar 'E') []) -> suspendAndResume $ void (runEditor endPosition (journalFilePath j)) >> uiReloadJournalIfChanged copts d j ui
+    VtyEvent (EvKey (KChar 'a') []) -> suspendAndResume $ clearScreen >> setCursorPosition 0 0 >> add (cliOptsDropArgs copts) j >> uiReloadIfFileChanged copts d j ui
+    VtyEvent (EvKey (KChar 'A') []) -> suspendAndResume $ void (runIadd (journalFilePath j)) >> uiReloadIfFileChanged copts d j ui
+    VtyEvent (EvKey (KChar 'E') []) -> suspendAndResume $ void (runEditor endPosition (journalFilePath j)) >> uiReloadIfFileChanged copts d j ui
+    -- J/K Jumps: move 10 rows at a time
+    VtyEvent (EvKey (KChar 'J') []) -> do
+      let l' = listMoveBy 10 l
+      -- Ensure we don't jump into the blank padding at the end
+      let l'' = if isBlankItem (listSelectedElement l')
+                then listMoveTo lastnonblankidx l'
+                else l'
+      put' ui{aScreen=scons ass{_assList=l''}}
+
+    VtyEvent (EvKey (KChar 'K') []) -> do
+      let l' = listMoveBy (-10) l
+      put' ui{aScreen=scons ass{_assList=l'}}
 
     -- adjust the period displayed:
     VtyEvent (EvKey (KChar 'T') []) ->       modify' (setReportPeriod (DayPeriod d)    >>> regenerateScreens j d)
@@ -252,7 +269,7 @@ asHandleNormalMode (ALS scons ass) ev = do
     VtyEvent (EvKey (KLeft)     [MShift]) -> modify' (previousReportPeriod journalspan >>> regenerateScreens j d)
 
     -- various toggles and settings:
-    VtyEvent (EvKey (KChar 'I') []) -> modify' (toggleIgnoreBalanceAssertions >>> uiCheckBalanceAssertions d)
+    VtyEvent (EvKey (KChar 'I') []) -> get' >>= uiToggleBalanceAssertions d
     VtyEvent (EvKey (KChar 'F') []) -> modify' (toggleForecast d   >>> regenerateScreens j d)
     VtyEvent (EvKey (KChar 'B') []) -> modify' (toggleConversionOp >>> regenerateScreens j d)
     VtyEvent (EvKey (KChar 'V') []) -> modify' (toggleValue        >>> regenerateScreens j d)

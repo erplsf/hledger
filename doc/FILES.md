@@ -1,17 +1,13 @@
 # Files
 
-<div class=pagetoc>
-
-<!-- toc -->
-</div>
-
 Some views and explanations of files in the hledger project, as of 2022-12.
+(Needs update..)
 
 <br clear=all>
 
 ## hledger working copy
 
-A full working copy of the official hledger [repos](REPOS.html)
+A full working copy of the official hledger [repos](REPOS.md)
 is best laid out like this (manually; we currently don't use git submodules):
 <pre>
 src/hledger/ - git clone https://github.com/simonmichael/hledger; cd hledger
@@ -188,7 +184,7 @@ src/hledger/finance/
 
 ## hledger user scripts
 
-[Scripts](scripts.html) for users are in bin/:
+[Scripts](scripts.md) for users are in bin/:
 
 <!-- $ gtree ^bin -->
 <pre>
@@ -254,23 +250,26 @@ src/hledger/tools/
 
 ## Sh/makefiles
 
-Many developer tasks are automated with Make and/or Shake also.
-Run `make` or `./Shake` (after `make Shake`) to see help.
+Many developer tasks are automated via `Justfile` or `Shake.hs` also.
+Run `just` or `./Shake.hs` to see help.
 
-<!-- $ gtree '(^|/)((bsd)?m|sh)ake' -->
 <pre>
+$ gtree '(^|/)((bsd)?m|sh)ake|justfile'
 src/hledger/
+  Justfile
   Makefile
   Makefile.helpsys
   Shake.hs
+  bin/
+    justfile
   doc/
-    MAKE.md
-    SHAKE.md
     haskellerz/
       Makefile
   examples/
+    csv/
+      Makefile
     invoicing/
-      makefile/
+      pandoc-make-invoice/
         Makefile
     reports/
       Makefile
@@ -376,7 +375,7 @@ src/hledger/
     SHAKE.md
     TESTS.md
     VERSIONNUMBERS.md
-    WORKFLOWS.md
+    DEVWORKFLOWS.md
     github-release-doc.tmpl.md
     haskellerz/
       haskellerz.md
@@ -446,7 +445,9 @@ src/hledger/
           README.md
           Register.md
           Rewrite.md
+          Repl.md
           Roi.md
+          Run.md
           Stats.md
           Tags.md
           Test.md
@@ -456,307 +457,6 @@ src/hledger/
       README.md
       errors/
         README.md
-</pre>
-
-## Additional docs
-
-Additional docs (intro pages, faqs, tutorials, cookbook..)
-are kept in the site repo's src/ directory.
-index.md is the home page.
-SUMMARY.md defines the site structure.
-
-Developer docs (UPPERCASE) and the latest dev manuals (dev/*.md) from
-the main repo are also symbolically linked there, so that they too
-appear on the website.
-
-<!-- $ cd site; gtree md -->
-<pre>
-src/hledger/site/src/
-  ACHIEVEMENTS.md
-  BACKLOG.md
-  BENCHMARKS.md
-  CHANGELOGS.md
-  CODE.md
-  COMMITS.md
-  CONTRIBUTING.md
-  CREDITS.md
-  DOCS.md
-  ERRORS.md
-  EXAMPLES.md
-  FILES.md
-  FINANCE.md
-  ISSUES.md
-  LINKS.md
-  MAKE.md
-  PULLREQUESTS.md
-  RELEASING.md
-  REPOS.md
-  ROADMAP.md
-  SHAKE.md
-  SUMMARY.md
-  TESTS.md
-  VERSIONNUMBERS.md
-  WORKFLOWS.md
-  accounting.md
-  add.md
-  balancing-the-accounting-equation.md
-  beancount.md
-  budgeting-and-forecasting.md
-  budgeting.md
-  change-account-name-separator.md
-  charts.md
-  checking-for-errors.md
-  command-line-completion.md
-  common-journal-entries.md
-  common-workflows.md
-  conversion2.md
-  cookbook.md
-  create-a-journal.md
-  currency-conversion.md
-  dev-README.md
-  dev.md
-  dsq.md
-  editors.md
-  export.md
-  faq.md
-  features.md
-  financerepo.md
-  finfaq.md
-  forecasting.md
-  foreign-trip-expenses.md
-  gain.md
-  gnucash.md
-  hledger-web-tips.md
-  import-csv.md
-  index.md
-  install.md
-  inventory.md
-  investments.md
-  invoicing.md
-  ledger.md
-  loans.md
-  manuals.md
-  mobile.md
-  mockups.md
-  multicurrency-tutorial.md
-  project-accounting.md
-  quicken.md
-  quickintro.md
-  quickstart.md
-  release-notes.md
-  report-examples.md
-  rewrite-account-names.md
-  rewrite-commodity-symbols.md
-  roi.md
-  save-frequently-used-options.md
-  scripting.md
-  scripts.md
-  simons-setup.md
-  snippets.md
-  sponsor.md
-  sqlite.md
-  start.md
-  support.md
-  tags-tutorial.md
-  time-planning.md
-  time-to-money.md
-  track-changes-with-version-control.md
-  track-investments.md
-  ui.md
-  videos.md
-  web.md
-  1.0/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.1/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.10/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.11/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.12/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.13/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.14/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.15/
-    csv.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.16/
-    csv.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.17/
-    csv.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.18/
-    csv.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.19/
-    csv.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.2/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.20/
-    csv.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.21/
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-  1.22/
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-  1.23/
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-  1.24/
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-  1.25/
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-  1.26/
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-  1.27/
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-  1.28/
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-  1.3/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.4/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.5/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  1.9/
-    csv.md
-    hledger-api.md
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
-    journal.md
-    timeclock.md
-    timedot.md
-  dev/
-    hledger-ui.md
-    hledger-web.md
-    hledger.md
 </pre>
 
 ## Site config files

@@ -19,10 +19,14 @@ where
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (bimap, Bifunctor (second))
+#if MIN_VERSION_base(4,19,0)
+import Data.List hiding ((!?))
+#else
 import Data.List
+#endif
 import Data.Maybe
-import qualified Data.Text as T
-import qualified Data.Vector as V
+import Data.Text qualified as T
+import Data.Vector qualified as V
 import Data.Vector ((!?))
 import Graphics.Vty (Event(..),Key(..),Modifier(..), Button (BLeft, BScrollDown, BScrollUp))
 import Brick
@@ -39,13 +43,13 @@ import Hledger.UI.UIState
 import Hledger.UI.UIUtils
 import Hledger.UI.UIScreens
 import Hledger.UI.Editor
-import Hledger.UI.ErrorScreen (uiReloadJournal, uiCheckBalanceAssertions, uiReloadJournalIfChanged)
+import Hledger.UI.ErrorScreen (uiReload, uiReloadIfFileChanged, uiToggleBalanceAssertions)
 
 rsDraw :: UIState -> [Widget Name]
 rsDraw UIState{aopts=_uopts@UIOpts{uoCliOpts=copts@CliOpts{reportspec_=rspec}}
               ,aScreen=RS RSS{..}
               ,aMode=mode
-              } = dbgui "rsDraw 1" $
+              } = dbgui "rsDraw" $
   case mode of
     Help       -> [helpDialog, maincontent]
     _          -> [maincontent]
@@ -69,7 +73,7 @@ rsDraw UIState{aopts=_uopts@UIOpts{uoCliOpts=copts@CliOpts{reportspec_=rspec}}
         maxamtswidth = max 0 (totalwidth - minnonamtcolswidth - whitespacewidth)
         maxchangewidthseen = maximum' $ map (wbWidth . rsItemChangeAmount) displayitems
         maxbalwidthseen = maximum' $ map (wbWidth . rsItemBalanceAmount) displayitems
-        changewidthproportion = fromIntegral maxchangewidthseen / fromIntegral (maxchangewidthseen + maxbalwidthseen)
+        changewidthproportion = fromIntegral maxchangewidthseen `divideSafe` fromIntegral (maxchangewidthseen + maxbalwidthseen)
         maxchangewidth = round $ changewidthproportion * fromIntegral maxamtswidth
         maxbalwidth = maxamtswidth - maxchangewidth
         changewidth = min maxchangewidth maxchangewidthseen
@@ -152,7 +156,7 @@ rsDraw UIState{aopts=_uopts@UIOpts{uoCliOpts=copts@CliOpts{reportspec_=rspec}}
               -- ,("q", "quit")
               ]
 
-rsDraw _ = dbgui "rsDraw 2" $ errorWrongScreenType "draw function"  -- PARTIAL:
+rsDraw _ = dbgui "rsDraw" $ errorWrongScreenType "rsDraw"  -- PARTIAL:
 
 rsDrawItem :: (Int,Int,Int,Int,Int) -> Bool -> RegisterScreenItem -> Widget Name
 rsDrawItem (datewidth,descwidth,acctswidth,changewidth,balwidth) selected RegisterScreenItem{..} =
@@ -183,7 +187,7 @@ rsDrawItem (datewidth,descwidth,acctswidth,changewidth,balwidth) selected Regist
 rsHandle :: BrickEvent Name AppEvent -> EventM Name UIState ()
 rsHandle ev = do
   ui0 <- get'
-  dbguiEv "rsHandle 1"
+  dbguiEv "rsHandle"
   case ui0 of
     ui@UIState{
       aScreen=RS sst@RSS{..}
@@ -241,14 +245,13 @@ rsHandle ev = do
               where
                 p = reportPeriod ui
 
-            e | e `elem` [AppEvent FileChange, VtyEvent (EvKey (KChar 'g') [])] ->
-              liftIO (uiReloadJournal copts d ui) >>= put'
+            e | e `elem` [AppEvent FileChange, VtyEvent (EvKey (KChar 'g') [])] -> uiReload copts d ui >>= put'
 
-            VtyEvent (EvKey (KChar 'I') []) -> put' $ uiCheckBalanceAssertions d (toggleIgnoreBalanceAssertions ui)
-            VtyEvent (EvKey (KChar 'a') []) -> suspendAndResume $ clearScreen >> setCursorPosition 0 0 >> add copts j >> uiReloadJournalIfChanged copts d j ui
-            VtyEvent (EvKey (KChar 'A') []) -> suspendAndResume $ void (runIadd (journalFilePath j)) >> uiReloadJournalIfChanged copts d j ui
+            VtyEvent (EvKey (KChar 'I') []) -> uiToggleBalanceAssertions d ui
+            VtyEvent (EvKey (KChar 'a') []) -> suspendAndResume $ clearScreen >> setCursorPosition 0 0 >> add (cliOptsDropArgs copts) j >> uiReloadIfFileChanged copts d j ui
+            VtyEvent (EvKey (KChar 'A') []) -> suspendAndResume $ void (runIadd (journalFilePath j)) >> uiReloadIfFileChanged copts d j ui
             VtyEvent (EvKey (KChar 'T') []) -> put' $ regenerateScreens j d $ setReportPeriod (DayPeriod d) ui
-            VtyEvent (EvKey (KChar 'E') []) -> suspendAndResume $ void (runEditor pos f) >> uiReloadJournalIfChanged copts d j ui
+            VtyEvent (EvKey (KChar 'E') []) -> suspendAndResume $ void (runEditor pos f) >> uiReloadIfFileChanged copts d j ui
               where
                 (pos,f) = case listSelectedElement _rssList of
                             Nothing -> (endPosition, journalFilePath j)
@@ -266,7 +269,16 @@ rsHandle ev = do
             VtyEvent (EvKey (KChar 'P') []) -> rsCenterSelection (regenerateScreens j d $ togglePending ui) >>= put'
             VtyEvent (EvKey (KChar 'C') []) -> rsCenterSelection (regenerateScreens j d $ toggleCleared ui) >>= put'
             VtyEvent (EvKey (KChar 'F') []) -> rsCenterSelection (regenerateScreens j d $ toggleForecast d ui) >>= put'
+            VtyEvent (EvKey (KChar 'J') []) -> do
+              let l' = listMoveBy 10 _rssList
+              let l'' = if isBlankElement (listSelectedElement l')
+                        then listMoveTo lastnonblankidx l'
+                        else l'
+              put' ui{aScreen=RS sst{_rssList=l''}}
 
+            VtyEvent (EvKey (KChar 'K') []) -> do
+              let l' = listMoveBy (-10) _rssList
+              put' ui{aScreen=RS sst{_rssList=l'}}
             VtyEvent (EvKey (KChar '/') []) -> put' $ regenerateScreens j d $ showMinibuffer "filter" Nothing ui
             VtyEvent (EvKey (KDown)     [MShift]) -> put' $ regenerateScreens j d $ shrinkReportPeriod d ui
             VtyEvent (EvKey (KUp)       [MShift]) -> put' $ regenerateScreens j d $ growReportPeriod d ui
@@ -328,7 +340,7 @@ rsHandle ev = do
             MouseUp{}         -> return ()
             AppEvent _        -> return ()
 
-    _ -> dbgui "rsHandle 2" $ errorWrongScreenType "event handler"
+    _ -> errorWrongScreenType "rsHandle"
 
 isBlankElement mel = ((rsItemDate . snd) <$> mel) == Just ""
 
@@ -350,8 +362,4 @@ rsCenterSelection ui = return ui
 rsEnterTransactionScreen :: AccountName -> [NumberedTransaction] -> NumberedTransaction -> UIState -> EventM Name UIState ()
 rsEnterTransactionScreen acct nts nt ui = do
   dbguiEv "rsEnterTransactionScreen"
-  put' $
-    pushScreen (tsNew acct nts nt)
-    ui
-
-
+  put' $ pushScreen (tsNew acct nts nt) ui

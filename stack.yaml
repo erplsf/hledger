@@ -1,6 +1,8 @@
-# stack build plan using GHC 9.4.5
-
-resolver: nightly-2023-05-03
+# stack build plan using GHC 9.12.2
+# https://gitlab.haskell.org/ghc/ghc/-/wikis/migration/9.12
+# https://downloads.haskell.org/ghc/9.12.1/docs/users_guide/9.12.1-notes.html
+# https://downloads.haskell.org/ghc/9.12.2/docs/users_guide/9.12.2-notes.html
+# https://downloads.haskell.org/ghc/9.12.2/docs/users_guide/9.12.3-notes.html
 
 packages:
 - hledger-lib
@@ -8,20 +10,27 @@ packages:
 - hledger-ui
 - hledger-web
 
-extra-deps:
-# for hledger-lib:
-# for hledger:
-# for hledger-ui:
-# for hledger-web:
-# for Shake.hs:
+resolver: nightly-2025-09-30
 
-#allow-newer: true
+notify-if-ghc-untested:   false
+notify-if-cabal-untested: false
+notify-if-no-run-tests:   false
+
+extra-deps:
+# for #2410, #2512:
+- haskeline-0.8.4.1
+# currently out of stackage:
+- yesod-static-1.6.1.0  # <1.6.1.1 to avoid https://github.com/psibi/crypton-conduit/issues/3
+- yesod-test-1.6.19
+- cryptonite-0.30
+- cryptonite-conduit-0.2.2
 
 nix:
   pure: false
   packages: [perl gmp ncurses zlib]
 
 # ghc-options:
+#   "$locals": -Wno-x-partial
 #   "$locals": -fplugin Debug.Breakpoint
 
 # # for precise profiling, per https://www.tweag.io/posts/2020-01-30-haskell-profiling.html:

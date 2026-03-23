@@ -18,9 +18,9 @@ import Data.Ord (comparing)
 import Data.Maybe (fromJust)
 import Data.Time (diffDays)
 import Data.Either (partitionEithers)
-import qualified Data.Text.IO as T
+import Data.Text.IO qualified as T
 import Lens.Micro (set)
-import System.Exit (exitFailure)
+import Safe (headDef)
 
 import Hledger
 import Hledger.Cli.CliOptions
@@ -30,7 +30,7 @@ diffmode = hledgerCommandMode
   $(embedFileRelative "Hledger/Cli/Commands/Diff.txt")
   []
   [generalflagsgroup2]
-  []
+  confflags
   ([], Just $ argsFlag "-f FILE1 -f FILE2 FULLACCOUNTTNAME")
 
 data PostingWithPath = PostingWithPath {
@@ -47,7 +47,7 @@ pptxn :: PostingWithPath -> Transaction
 pptxn = fromJust . ptransaction . ppposting
 
 ppamountqty :: PostingWithPath -> Quantity
-ppamountqty = aquantity . head . amounts . pamount . ppposting
+ppamountqty = aquantity . headDef nullamt . amounts . pamount . ppposting
 
 allPostingsWithPath :: Journal -> [PostingWithPath]
 allPostingsWithPath j = do
@@ -113,6 +113,4 @@ diff CliOpts{file_=[f1, f2], reportspec_=ReportSpec{_rsQuery=Acct acctRe}} _ = d
   putStrLn "These transactions are in the second file only:\n"
   mapM_ (T.putStr . showTransaction) unmatchedtxn2
 
-diff _ _ = do
-  putStrLn "Please specify two input files. Usage: hledger diff -f FILE1 -f FILE2 FULLACCOUNTNAME"
-  exitFailure
+diff _ _ = error' "Please specify two input files. Usage: hledger diff -f FILE1 -f FILE2 FULLACCOUNTNAME"

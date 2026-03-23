@@ -1,8 +1,10 @@
 {-|
 
-Instances for anonymizing sensitive data in various types.
+Instances for obfuscating sensitive data (mainly text, not numbers) in various types.
 
-Note that there is no clear way to anonymize numbers.
+Currently this is deterministic and does not provide much privacy.
+It has been moved to a hidden --obfuscate flag, with the old --anon flag
+now raising an error. See https://github.com/simonmichael/hledger/issues/2133 .
 
 -}
 
@@ -16,7 +18,7 @@ import Control.Arrow (first)
 import Data.Hashable (hash)
 import Data.Word (Word32)
 import Numeric (showHex)
-import qualified Data.Text as T
+import Data.Text qualified as T
 
 import Hledger.Data
 import Data.Map (mapKeys)

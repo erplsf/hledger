@@ -1,30 +1,31 @@
 # CREDITS
 
-hledger is brought to you by the
-
-- Issue wranglers,
-- Bug hunters,
-- Design dreamers,
-- Code slingers,
-- Doc poets,
-- Package marshals,
-- Helping hands,
-- Good news preachers,
-- Bank rollers,
-- Broom pushers,
-
-by the pioneering John Wiegley, who opened up this territory with [Ledger](https://ledger-cli.org),
-
-and by the innumerable other benefactors making it all possible.
+hledger is brought to you by...\
+the Issue wranglers,
+Bug hunters,
+Design dreamers,
+Code slingers,
+Doc poets,
+Package marshals,
+Helping hands,
+Good news preachers,
+Bank rollers,
+Broom pushers,
+the pioneer John Wiegley,
+and innumerable other benefactors.
 
 ## Commit authors 
+
+<a href="https://github.com/simonmichael/hledger/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=simonmichael/hledger&max=9999" />
+</a>
 
 <https://github.com/simonmichael/hledger/graphs/contributors>
 
 11231 commits in 16 years by 155 people as of 2022-12-21:
 
 
-<!-- year-end: update stats, make showauthors, replace table preserving notes (eg emacs macro), maybe fix root commits -->
+<!-- year-end: update stats, just authors, replace table preserving notes (eg emacs macro), maybe fix root commits -->
 | Commits | Author                         | Notes ([chat](#footer) me with updates!)                                                                                                                                                      |
 |---------|--------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 9749    | Simon Michael                  | founder, project leader, lead developer                                                                                                                                                       |
@@ -32,7 +33,7 @@ and by the innumerable other benefactors making it all possible.
 | 161     | Dmitry Astapov                 | roi, files commands; --transpose; merge/improve --budget; generalise --forecast/--auto; docker packaging; improved CSV parsing, balancing, periodic transactions, close, parsing, docs, tests |
 | 81      | Vladimir Zhelezov              | new bash shell completions                                                                                                                                                                    |
 | 72      | Alex Chen                      | parsing improvements, code cleanups, better error messages; dep updates                                                                                                                       |
-| 52      | Mykola Orliuk                  | hledger-budget, hledger-prices addons; scientific number notation; print, hledger-equity, hledger-rewrite, --pivot, space, parsing improvements; code updates; GHC 8.0 support                |
+| 52      | Mykola Orliuk                  | hledger-budget, hledger-prices add-ons; scientific number notation; print, hledger-equity, hledger-rewrite, --pivot, space, parsing improvements; code updates; GHC 8.0 support                |
 | 51      | Jakob Schöttl                  | bash completions; register --invert; timeclock parsing improvements; code cleanups                                                                                                            |
 | 40      | Everett Hildenbrandt           | doc toolchain updates, switch from hakyll to pandoc; csv parser improvement                                                                                                                   |
 | 31      | Jakub Zárybnický               | hledger-web, hledger-ui improvements                                                                                                                                                          |

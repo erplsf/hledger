@@ -1,10 +1,15 @@
-$ hledger check -f  tcorderedactions.timeclock
->2 /hledger: Error: .*tcorderedactions.timeclock:8:1:
-8 \| i 2022-01-01 00:01:00   
-  \| \^
+$$$ hledger check -f  tcorderedactions.timeclock
+>>>2 /Error: .*tcorderedactions.timeclock:8:1:
+8 \| i 2022-01-01 00:01:00 a  
 
-Expected a timeclock o entry but got i.
-Only one session may be clocked in at a time.
-Please alternate i and o, beginning with i.
+overlaps with session beginning at:
+
+.*
+7 \| i 2022-01-01 00:00:00 a  
+
+Overlapping sessions with the same account name are not supported.
 /
->= 1
+>>>= 1
+
+
+

@@ -13,14 +13,15 @@ where
 
 import Data.Function ((&))
 import Data.Maybe (isNothing)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Text.Printf
 
 import Hledger.Data.Types
 import Hledger.Data.Dates
+import Hledger.Data.DayPartition
 import Hledger.Data.Amount
-import Hledger.Data.Posting (post, commentAddTagNextLine)
+import Hledger.Data.Posting (post, generatedTransactionTagName)
 import Hledger.Data.Transaction
 
 -- $setup
@@ -114,10 +115,6 @@ instance Show PeriodicTransaction where
 -- <BLANKLINE>
 --
 -- >>> _ptgen "every 2nd day of month from 2017/02 to 2017/04"
--- 2017-01-02
---     ; generated-transaction: ~ every 2nd day of month from 2017/02 to 2017/04
---     a           $1.00
--- <BLANKLINE>
 -- 2017-02-02
 --     ; generated-transaction: ~ every 2nd day of month from 2017/02 to 2017/04
 --     a           $1.00
@@ -128,10 +125,6 @@ instance Show PeriodicTransaction where
 -- <BLANKLINE>
 --
 -- >>> _ptgen "every 30th day of month from 2017/1 to 2017/5"
--- 2016-12-30
---     ; generated-transaction: ~ every 30th day of month from 2017/1 to 2017/5
---     a           $1.00
--- <BLANKLINE>
 -- 2017-01-30
 --     ; generated-transaction: ~ every 30th day of month from 2017/1 to 2017/5
 --     a           $1.00
@@ -150,10 +143,6 @@ instance Show PeriodicTransaction where
 -- <BLANKLINE>
 --
 -- >>> _ptgen "every 2nd Thursday of month from 2017/1 to 2017/4"
--- 2016-12-08
---     ; generated-transaction: ~ every 2nd Thursday of month from 2017/1 to 2017/4
---     a           $1.00
--- <BLANKLINE>
 -- 2017-01-12
 --     ; generated-transaction: ~ every 2nd Thursday of month from 2017/1 to 2017/4
 --     a           $1.00
@@ -168,10 +157,6 @@ instance Show PeriodicTransaction where
 -- <BLANKLINE>
 --
 -- >>> _ptgen "every nov 29th from 2017 to 2019"
--- 2016-11-29
---     ; generated-transaction: ~ every nov 29th from 2017 to 2019
---     a           $1.00
--- <BLANKLINE>
 -- 2017-11-29
 --     ; generated-transaction: ~ every nov 29th from 2017 to 2019
 --     a           $1.00
@@ -214,26 +199,24 @@ instance Show PeriodicTransaction where
 
 runPeriodicTransaction :: Bool -> PeriodicTransaction -> DateSpan -> [Transaction]
 runPeriodicTransaction verbosetags PeriodicTransaction{..} requestedspan =
-    [ t{tdate=d} | (DateSpan (Just efd) _) <- alltxnspans, let d = fromEFDay efd, spanContainsDate requestedspan d ]
+    [ t{tdate=d} | (d, _) <- maybe [] dayPartitionToList alltxnspans, spanContainsDate requestedspan d ]
   where
     t = nulltransaction{
            tsourcepos   = ptsourcepos
           ,tstatus      = ptstatus
           ,tcode        = ptcode
           ,tdescription = ptdescription
-          ,tcomment     = ptcomment &
-            (if verbosetags then (`commentAddTagNextLine` ("generated-transaction",period)) else id)
-          ,ttags        = pttags &
-            (("_generated-transaction",period) :) &
-            (if verbosetags then (("generated-transaction" ,period) :) else id)
+          ,tcomment     = ptcomment
+          ,ttags        = pttags
           ,tpostings    = ptpostings
           }
+        & transactionAddHiddenAndMaybeVisibleTag verbosetags (generatedTransactionTagName, period)
     period = "~ " <> ptperiodexpr
     -- All the date spans described by this periodic transaction rule.
     alltxnspans = splitSpan adjust ptinterval span'
       where
         -- If the PT does not specify  start or end dates, we take them from the requestedspan.
-        span' = ptspan `spanDefaultsFrom` requestedspan
+        span' = ptspan `spanValidDefaultsFrom` requestedspan
         -- Unless the PT specified a start date explicitly, we will adjust the start date to the previous interval boundary.
         adjust = isNothing $ spanStart span'
 

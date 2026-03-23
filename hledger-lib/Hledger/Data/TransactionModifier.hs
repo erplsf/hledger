@@ -15,17 +15,18 @@ where
 import Prelude hiding (Applicative(..))
 import Control.Applicative (Applicative(..), (<|>))
 import Data.Function ((&))
-import qualified Data.Map as M
+import Data.Map qualified as M
 import Data.Maybe (catMaybes)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time.Calendar (Day)
+import Safe (headDef)
 import Hledger.Data.Types
 import Hledger.Data.Amount
 import Hledger.Data.Dates
-import Hledger.Data.Transaction (txnTieKnot)
+import Hledger.Data.Transaction (txnTieKnot, transactionAddHiddenAndMaybeVisibleTag)
 import Hledger.Query (Query, filterQuery, matchesAmount, matchesPostingExtra,
                       parseQuery, queryIsAmt, queryIsSym, simplifyQuery)
-import Hledger.Data.Posting (commentJoin, commentAddTag, postingAddTags, postingApplyCommodityStyles)
+import Hledger.Data.Posting (commentJoin, commentAddTag, postingAddTags, modifiedTransactionTagName)
 import Hledger.Utils (dbg6, wrap)
 
 -- $setup
@@ -46,14 +47,10 @@ modifyTransactions :: (AccountName -> Maybe AccountType)
 modifyTransactions atypes atags styles d verbosetags tmods ts = do
   fs <- mapM (transactionModifierToFunction atypes atags styles d verbosetags) tmods  -- convert modifiers to functions, or return a parse error
   let
-    modifytxn t = t''
+    modifytxn t =
+      t' & if t'/=t then transactionAddHiddenAndMaybeVisibleTag verbosetags (modifiedTransactionTagName,"") else id
       where
         t' = foldr (flip (.)) id fs t  -- apply each function in turn
-        t'' = if t' == t
-              then t'
-              else t'{tcomment=tcomment t' & (if verbosetags then (`commentAddTag` ("modified","")) else id)
-                     ,ttags=ttags t' & (("_modified","") :) & (if verbosetags then (("modified","") :) else id)
-                     }
 
   Right $ map modifytxn ts
 
@@ -68,7 +65,7 @@ modifyTransactions atypes atags styles d verbosetags tmods ts = do
 -- Currently the only kind of modification possible is adding automated
 -- postings when certain other postings are present.
 --
--- >>> import qualified Data.Text.IO as T
+-- >>> import Data.Text.IO qualified as T
 -- >>> t = nulltransaction{tpostings=["ping" `post` usd 1]}
 -- >>> tmpost acc amt = TMPostingRule (acc `post` amt) False
 -- >>> test = either putStr (T.putStr.showTransaction) . fmap ($ t) . transactionModifierToFunction (const Nothing) (const []) mempty nulldate True
@@ -109,9 +106,10 @@ transactionModifierToFunction atypes atags styles refdate verbosetags Transactio
 -- The provided TransactionModifier's query text is saved as the tags' value.
 tmPostingRuleToFunction :: Bool -> M.Map CommoditySymbol AmountStyle -> Query -> T.Text -> TMPostingRule -> (Posting -> Posting)
 tmPostingRuleToFunction verbosetags styles query querytxt tmpr =
-  \p -> postingApplyCommodityStyles styles . renderPostingCommentDates $ pr
+  \p -> styleAmounts styles . renderPostingCommentDates $ pr
       { pdate    = pdate  pr <|> pdate  p
       , pdate2   = pdate2 pr <|> pdate2 p
+      , paccount = account' p
       , pamount  = amount' p
       , pcomment = pcomment pr & (if verbosetags then (`commentAddTag` ("generated-posting",qry)) else id)
       , ptags    = ptags pr
@@ -122,16 +120,20 @@ tmPostingRuleToFunction verbosetags styles query querytxt tmpr =
     pr = tmprPosting tmpr
     qry = "= " <> querytxt
     symq = filterQuery (liftA2 (||) queryIsSym queryIsAmt) query
+    account' = if accountTemplate `T.isInfixOf` paccount pr
+                 then \p -> T.replace accountTemplate (paccount p) $ paccount pr
+                 else const $ paccount pr
+      where accountTemplate = "%account"
     amount' = case postingRuleMultiplier tmpr of
         Nothing -> const $ pamount pr
         Just n  -> \p ->
           -- Multiply the old posting's amount by the posting rule's multiplier.
           let
-            pramount = dbg6 "pramount" . head . amountsRaw $ pamount pr
+            pramount = dbg6 "pramount" . headDef nullamt . amountsRaw $ pamount pr
             matchedamount = dbg6 "matchedamount" . filterMixedAmount (symq `matchesAmount`) $ pamount p
             -- Handle a matched amount with a total price carefully so as to keep the transaction balanced (#928).
             -- Approach 1: convert to a unit price and increase the display precision slightly
-            -- Mixed as = dbg6 "multipliedamount" $ n `multiplyMixedAmount` mixedAmountTotalPriceToUnitPrice matchedamount
+            -- Mixed as = dbg6 "multipliedamount" $ n `multiplyMixedAmount` mixedAmountTotalCostToUnitCost matchedamount
             -- Approach 2: multiply the total price (keeping it positive) as well as the quantity
             as = dbg6 "multipliedamount" $ multiplyMixedAmount n matchedamount
           in
@@ -140,7 +142,7 @@ tmPostingRuleToFunction verbosetags styles query querytxt tmpr =
               -- TODO multipliers with commodity symbols are not yet a documented feature.
               -- For now: in addition to multiplying the quantity, it also replaces the
               -- matched amount's commodity, display style, and price with those of the posting rule.
-              c  -> mapMixedAmount (\a -> a{acommodity = c, astyle = astyle pramount, aprice = aprice pramount}) as
+              c  -> mapMixedAmount (\a -> a{acommodity = c, astyle = astyle pramount, acost = acost pramount}) as
 
 postingRuleMultiplier :: TMPostingRule -> Maybe Quantity
 postingRuleMultiplier tmpr = case amountsRaw . pamount $ tmprPosting tmpr of

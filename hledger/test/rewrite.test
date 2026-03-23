@@ -1,5 +1,6 @@
+# * rewrite command
 
-# 1. Add proportional income tax (from documentation)
+# ** 1. Add proportional income tax (from documentation)
 # With --verbose-tags, an informative extra tag is added.
 <
 2016/1/1 paycheck
@@ -11,7 +12,8 @@
     assets:cash             $20
     assets:bank
 $ hledger rewrite -f- ^income --add-posting '(liabilities:tax)  *.33  ; income tax' --verbose-tags
-2016-01-01 paycheck  ; modified:
+2016-01-01 paycheck
+    ; modified-transaction: 
     income:remuneration           $-100
     (liabilities:tax)              $-33  ; income tax, generated-posting: = ^income
     income:donations               $-15
@@ -24,7 +26,7 @@ $ hledger rewrite -f- ^income --add-posting '(liabilities:tax)  *.33  ; income t
 
 >= 0
 
-# 2. Duplicate posting for budgeting (from documentation).
+# ** 2. Duplicate posting for budgeting (from documentation).
 # It uses same date as the matched posting.
 <
 2016/1/1 withdraw
@@ -46,7 +48,7 @@ $ hledger rewrite -f- expenses:gifts --add-posting '(budget:gifts)  *-1'
 
 >= 0
 
-# 3. Add postings in another commodity
+# ** 3. Add postings in another commodity
 <
 2017/04/24 * 09:00-09:25
     (assets:unbilled:client1)           0.42h
@@ -79,7 +81,7 @@ $ hledger rewrite -f-
 >= 0
 
 
-# 4. Add postings with prices
+# ** 4. Add postings with prices
 <
 2017/04/24 * 09:00-09:25
     (assets:unbilled:client1)         0.42h
@@ -116,7 +118,7 @@ $ hledger rewrite -f- -B
 
 >= 0
 
-# 5. Add absolute bank processing fee
+# ** 5. Add absolute bank processing fee
 # XXX is "and" really processed here ?
 <
 2016/1/1 withdraw
@@ -146,7 +148,7 @@ $ hledger rewrite -f- assets:bank and 'amt:<0' --add-posting 'expenses:fee  $5' 
 
 >= 0
 
-# 6. Rewrite rule within journal
+# ** 6. Rewrite rule within journal
 <
 = ^assets:bank$ date:2017/1 amt:<0
     assets:bank  *0.008
@@ -178,33 +180,37 @@ $ hledger rewrite -f- assets:bank and 'amt:<0' --add-posting 'expenses:fee  $5' 
 ; but relative order matters to refer-rewritten transactions
 = ^expenses not:housing not:grocery not:food
     (budget:misc)  *-1
+
 $ hledger rewrite -f- date:2017/1  --add-posting 'Here comes Santa  $0' --verbose-tags
-2016-12-31  ; modified:
-    expenses:housing         $600.00
-    (budget:housing)        $-600.00  ; generated-posting: = ^expenses:housing
+2016-12-31
+    ; modified-transaction: 
+    expenses:housing            $600
+    (budget:housing)           $-600  ; generated-posting: = ^expenses:housing
     assets:cash
 
-2017-01-01  ; modified:
-    expenses:food             $20.00
-    (budget:food)            $-20.00  ; generated-posting: = ^expenses:grocery ^expenses:food
-    Here comes Santa               0  ; generated-posting: = date:2017/1
-    expenses:leisure          $15.00
-    (budget:misc)            $-15.00  ; generated-posting: = ^expenses not:housing not:grocery not:food
-    Here comes Santa               0  ; generated-posting: = date:2017/1
-    expenses:grocery          $30.00
-    (budget:food)            $-30.00  ; generated-posting: = ^expenses:grocery ^expenses:food
-    Here comes Santa               0  ; generated-posting: = date:2017/1
+2017-01-01
+    ; modified-transaction: 
+    expenses:food                $20
+    (budget:food)               $-20  ; generated-posting: = ^expenses:grocery ^expenses:food
+    Here comes Santa              $0  ; generated-posting: = date:2017/1
+    expenses:leisure             $15
+    (budget:misc)               $-15  ; generated-posting: = ^expenses not:housing not:grocery not:food
+    Here comes Santa              $0  ; generated-posting: = date:2017/1
+    expenses:grocery             $30
+    (budget:food)               $-30  ; generated-posting: = ^expenses:grocery ^expenses:food
+    Here comes Santa              $0  ; generated-posting: = date:2017/1
     assets:cash
-    Here comes Santa               0  ; generated-posting: = date:2017/1
+    Here comes Santa              $0  ; generated-posting: = date:2017/1
 
-2017-01-02  ; modified:
+2017-01-02
+    ; modified-transaction: 
     assets:cash              $200.00
-    Here comes Santa               0  ; generated-posting: = date:2017/1
+    Here comes Santa              $0  ; generated-posting: = date:2017/1
     assets:bank
     assets:bank               $-1.60  ; generated-posting: = ^assets:bank$ date:2017/1 amt:<0
     expenses:fee               $1.60  ; cash withdraw fee, generated-posting: = ^assets:bank$ date:2017/1 amt:<0
     (budget:misc)             $-1.60  ; generated-posting: = ^expenses not:housing not:grocery not:food
-    Here comes Santa               0  ; generated-posting: = date:2017/1
+    Here comes Santa              $0  ; generated-posting: = date:2017/1
 
 2017-02-01
     assets:cash         $100.00
@@ -212,7 +218,7 @@ $ hledger rewrite -f- date:2017/1  --add-posting 'Here comes Santa  $0' --verbos
 
 >= 0
 
-# 7. Rewrite using diff output
+# ** 7. Rewrite using diff output
 <
 2016/01/01 withdraw
     assets:cash              $20

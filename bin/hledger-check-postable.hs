@@ -14,20 +14,18 @@ import Data.String.QQ (s)
 import Text.Printf
 import Control.Monad
 import Data.List
-import qualified Data.Text as T
+import Data.Text qualified as T
 -- import Data.Time.Calendar
 import Safe
 import System.Exit
 import Hledger
-import Hledger.Cli
+import Hledger.Cli.Script
 
 ------------------------------------------------------------------------------
 cmdmode :: Mode RawOpts
 cmdmode = hledgerCommandMode
   [s| check-postable
 Check that no postings are made to accounts with a postable:(n|no) tag.
-
-_FLAGS
   |]
   [] 
   [generalflagsgroup1]
@@ -38,7 +36,7 @@ _FLAGS
 main :: IO ()
 main = do
   opts@CliOpts{reportspec_=_rspec} <- getHledgerCliOpts cmdmode
-  withJournalDo opts $ \j -> do
+  withJournal opts $ \j -> do
     let
       postedaccts = journalAccountNamesUsed j
       checkAcctPostable :: Journal -> AccountName -> Either AccountName ()

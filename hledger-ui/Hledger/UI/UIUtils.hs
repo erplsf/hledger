@@ -42,6 +42,7 @@ module Hledger.UI.UIUtils (
   ,mapScreens
   ,uiNumBlankItems
   ,showScreenStack
+  ,sendVtyEvents
   )
 where
 
@@ -51,14 +52,16 @@ import Brick.Widgets.Border.Style
 import Brick.Widgets.Dialog
 import Brick.Widgets.Edit
 import Brick.Widgets.List (List, listSelectedL, listNameL, listItemHeightL, listSelected, listMoveDown, listMoveUp, GenericList, listElements)
+import Control.Concurrent.STM (atomically, writeTChan)  -- GHC only
 import Control.Monad.IO.Class
 import Data.Bifunctor (second)
 import Data.List
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time (addDays)
 import Graphics.Vty
   (Event(..),Key(..),Modifier(..),Vty(..),Color,Attr,currentAttr,refresh, displayBounds
   -- ,Output(displayBounds,mkDisplayContext),DisplayContext(..)
+  ,Vty (inputIface), InternalEvent (InputEvent), Input (eventChannel)
   )
 import Lens.Micro.Platform
 
@@ -69,7 +72,7 @@ import Hledger.Cli.DocFiles
 import Hledger.UI.UITypes
 
 import Data.Vector (Vector)
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 
 -- | On posix platforms, send the system STOP signal to suspend the
 -- current program. On windows, does nothing.
@@ -181,7 +184,7 @@ helpDialog =
                 vBox [
                    withAttr (attrName "help" <> attrName "heading") $ str "Filtering"
                   ,renderKey ("/   ", "set a filter query")
-                  ,renderKey ("F   ", "show future & periodic txns")
+                  ,renderKey ("F   ", "show future & forecast txns")
                   ,renderKey ("R   ", "show real/all postings")
                   ,renderKey ("z   ", "show nonzero/all amounts")
                   ,renderKey ("U/P/C ", "show unmarked/pending/cleared")
@@ -379,7 +382,7 @@ withBorderAttr attr = updateAttrMap (applyAttrMappings [(attrName "border", attr
 
 -- | Scroll a list's viewport so that the selected item is centered in the
 -- middle of the display area.
-scrollSelectionToMiddle :: List Name item -> EventM Name UIState ()
+scrollSelectionToMiddle :: Brick.Widgets.List.List Name item -> EventM Name UIState ()
 scrollSelectionToMiddle list = do
   case list^.listSelectedL of
     Nothing -> return ()
@@ -429,7 +432,7 @@ reportSpecSetFutureAndForecast fcast rspec =
 -- Vertically scroll the named list's viewport with the given number of non-empty items
 -- by the given positive or negative number of items (usually 1 or -1).
 -- The selection will be moved when necessary to keep it visible and allow the scroll.
-listScrollPushingSelection :: Name -> Int -> Int -> EventM Name (List Name item) (GenericList Name Vector item)
+listScrollPushingSelection :: Name -> Int -> Int -> EventM Name (Brick.Widgets.List.List Name item) (GenericList Name Vector item)
 listScrollPushingSelection name listheight scrollamt = do
   list <- get
   viewportScroll name `vScrollBy` scrollamt
@@ -451,15 +454,15 @@ listScrollPushingSelection name listheight scrollamt = do
 -- logs the string to hledger-ui.log before returning the second argument.
 -- Uses unsafePerformIO.
 dbgui :: String -> a -> a
-dbgui = traceLogAt 1
+dbgui = dbg1Msg
 
 -- | Like dbgui, but convenient to use in IO.
 dbguiIO :: String -> IO ()
-dbguiIO = traceLogAtIO 1
+dbguiIO = dbg1MsgIO
 
 -- | Like dbgui, but convenient to use in EventM handlers.
 dbguiEv :: String -> EventM Name s ()
-dbguiEv s = dbgui s $ return ()
+dbguiEv s = dbg1Msg s $ return ()
 
 -- | Like dbguiEv, but log a compact view of the current screen stack.
 -- See showScreenStack.
@@ -530,3 +533,10 @@ uiNumBlankItems
   -- | debugLevel >= uiDebugLevel = 0    -- suppress to improve debug output.
   -- | otherwise 
   = 100  -- 100 ought to be enough for anyone
+
+-- Send some events to vty, atomically so they won't have other events interleaved.
+-- (But there may be events already in the channel ahead of them.)
+sendVtyEvents :: [Event] -> EventM n s ()
+sendVtyEvents evs = do
+  input <- eventChannel . inputIface <$> getVtyHandle
+  liftIO $ atomically $ mapM_ (writeTChan input . InputEvent) evs

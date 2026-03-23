@@ -3,6 +3,8 @@ Utilities used throughout hledger, or needed low in the module hierarchy.
 These are the bottom of hledger's module graph.
 -}
 
+{-# LANGUAGE CPP #-}
+
 module Hledger.Utils (
 
   -- * Functions
@@ -16,12 +18,17 @@ module Hledger.Utils (
   curry4,
   uncurry4,
 
+  divideSafe,
+
   -- * Lists
   maximum',
   maximumStrict,
   minimumStrict,
   splitAtElement,
   sumStrict,
+  all1,
+  takeUntilFails,
+  takeUntilFailsNE,
 
   -- * Trees
   treeLeaves,
@@ -47,7 +54,9 @@ module Hledger.Utils (
   sixth6,
 
   -- * Misc
+  multicol,
   numDigitsInt,
+  numDigitsInteger,
   makeHledgerClassyLenses,
 
   -- * Other
@@ -66,8 +75,14 @@ module Hledger.Utils (
 where
 
 import Data.Char (toLower)
-import Data.List.Extra (foldl', foldl1', uncons, unsnoc)
-import qualified Data.Set as Set
+import Data.List (intersperse)
+import Data.List.Extra (chunksOf, foldl1', uncons, unsnoc)
+import qualified Data.List.NonEmpty as NE
+#if !MIN_VERSION_base(4,20,0)
+import Data.List (foldl')
+#endif
+import Data.Set qualified as Set
+import Data.Text qualified as T (pack, unpack)
 import Data.Tree (foldTree, Tree (Node, subForest))
 import Language.Haskell.TH (DecsQ, Name, mkName, nameBase)
 import Lens.Micro ((&), (.~))
@@ -133,6 +148,11 @@ curry4 f w x y z = f (w, x, y, z)
 uncurry4 :: (a -> b -> c -> d -> e) -> (a, b, c, d) -> e
 uncurry4 f (w, x, y, z) = f w x y z
 
+-- | Division, returning 0 when the denominator is 0.
+divideSafe :: (Eq a, Fractional a) => a -> a -> a
+divideSafe _ 0 = 0
+divideSafe a b = a / b
+
 -- Lists
 
 -- | Total version of maximum, for integral types, giving 0 for an empty list.
@@ -164,6 +184,22 @@ splitAtElement x l =
 {-# INLINABLE sumStrict #-}
 sumStrict :: Num a => [a] -> a
 sumStrict = foldl' (+) 0
+
+-- | Version of all that fails on an empty list.
+{-# INLINABLE all1 #-}
+all1 :: (a -> Bool) -> [a] -> Bool
+all1 _ [] = False
+all1 p as = all p as
+
+-- | Take elements from a non-empty list until a predicate fails, and then keep
+-- the first failing element as well.
+takeUntilFailsNE :: (a -> Bool) -> NE.NonEmpty a -> NE.NonEmpty a
+takeUntilFailsNE p = NE.fromList . takeUntilFails p . NE.toList  -- Result guaranteed to be non-empty
+
+-- | Take elements from a list until a predicate fails, and then keep the first
+-- failing element as well.
+takeUntilFails :: (a -> Bool) -> [a] -> [a]
+takeUntilFails p = foldr (\x -> if p x then (x :) else const [x]) []
 
 -- Trees
 
@@ -199,6 +235,21 @@ sixth6  (_,_,_,_,_,x) = x
 
 -- Misc
 
+-- | Convert a list of strings to a multi-line multi-column list
+-- fitting within the given width. Not wide character aware.
+multicol :: Int -> [String] -> String
+multicol _ [] = []
+multicol width strs =
+  let
+    maxwidth = maximum' $ map length strs
+    numcols = min (length strs) (width `div` (maxwidth+2))
+    itemspercol = length strs `div` numcols
+    colitems = chunksOf itemspercol strs
+    cols = map unlines colitems
+    sep = " "
+  in
+    T.unpack $ textConcatBottomPadded $ map T.pack $ intersperse sep cols
+
 -- | Find the number of digits of an 'Int'.
 {-# INLINE numDigitsInt #-}
 numDigitsInt :: Integral a => Int -> a
@@ -214,6 +265,12 @@ numDigitsInt n
          | a >= 10000000000000000 = 16 + go (a `quot` 10000000000000000)
          | a >= 100000000         = 8  + go (a `quot` 100000000)
          | otherwise              = 4  + go (a `quot` 10000)
+
+-- | Find the number of digits of an Integer.
+-- The integer should not have more digits than an Int can count.
+-- This is probably inefficient.
+numDigitsInteger :: Integer -> Int
+numDigitsInteger = length . dropWhile (=='-') . show
 
 -- | Make classy lenses for Hledger options fields.
 -- This is intended to be used with BalancingOpts, InputOpt, ReportOpts,

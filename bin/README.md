@@ -1,53 +1,89 @@
 # Scripts and add-ons
 
-<div class=pagetoc>
+(This is the README in the hledger repo's `bin/` directory,
+also published as the [Scripts and add-ons] page on hledger.org.)
+<!-- This page can be viewed on github or hledger.org, so use absolute urls here: -->
 
-<!-- toc -->
-</div>
+[Scripts and add-ons]: https://hledger.org/scripts.html
+[Scripting hledger]:   https://hledger.org/scripting.html
+[bin]:                 https://github.com/simonmichael/hledger/tree/master/bin
 
-This document is the README in the hledger repo's [bin] directory, 
-and is also published as [Scripts] on hledger.org.
+A *script* is a program you can run immediately without needing to compile it first.
+They are often small and defined in a single file or shell alias or shell function.
+You can create your own simple or complex scripts which enhance hledger.
+Eg you might script a complicated report so you don't have to remember the detailed command(s).
 
-[Add-on commands](hledger.html#add-on-commands) are executable script files or compiled programs
-named `hledger-*`, which show up in hledger's commands list.
-Some notable add-ons are listed [in the hledger manual](https://hledger.org/dev/hledger.html#add-ons). <!--  > PART 4. COMMANDS > ADD-ONS -->
+A hledger *add-on command* is any program whose name begins with "hledger-".
+Add-on commands found in PATH will appear in the commands list (shown when you run `hledger` with no arguments).
+Some of the scripts below are add-ons.
+Some add-ons are written in Haskell and can use hledger's full power, like builtin commands.
 
-The rest of this page lists smaller scripts and add-ons which are collected in bin/,
-grouped by how closely they work with hledger:
+Below are some existing scripts you can use or learn from.
+Most of these are collected in [hledger's bin/ directory][bin],
+which you can get by [cloning](https://hledger.org/scripts.html#install-scripts) the hledger source.
+Compiled add-ons are also listed below, in their own section.
 
-To be clear: you don't need any of these when starting out with hledger.
-hledger comes with many built-in commands, and you may want to get familiar with those first.
+Note, you don't need any of these extras if you are new to hledger -
+except possibly hledger-ui and hledger-web, which can be nice to have at the start.
 
 
-<!-- This page can be viewed on github or hledger.org, so use absolute urls. -->
-[bin]:                https://github.com/simonmichael/hledger/tree/master/bin
-[Scripts]:            https://hledger.org/scripts.html
-[Scripting hledger]:  https://hledger.org/scripting.html
+## Related scripts
 
-## HLEDGER-RELATED
+Here are some scripts which don't use hledger directly, but might be useful to hledger users.
+(For more, see also: [plaintextaccounting.org > Software](https://plaintextaccounting.org#software)).
 
-These scripts don't use hledger directly, but are complementary and might be useful to hledger users.
-([plaintextaccounting.org](https://plaintextaccounting.org) has a longer list of PTA tools.)
+
+### ledgereval
+
+[ledgereval](https://github.com/simonmichael/hledger/blob/master/bin/ledgereval)
+is a helper for evaluating Ledger value expressions.
+It's useful eg when converting amount expressions like `(1 USD + 2 USD)` to simple amounts.
+
+### pricehist
+
+[pricehist](https://pypi.org/project/pricehist) is useful for downloading market prices / conversion rates; recommended.
+And [`hledger-pricehist`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-pricehist)
+is a small script to make it show up in the hledger commands list.
 
 ### paypaljson
 
 [`paypaljson`](https://github.com/simonmichael/hledger/blob/master/bin/paypaljson)
 downloads the last 30 days of Paypal transactions (requires a free developer account & API key).
 
-### paypaljson2csv
+### paypalcsv
 
-[`paypaljson2csv`](https://github.com/simonmichael/hledger/blob/master/bin/paypaljson2csv) (python)
+[`paypalcsv`](https://github.com/simonmichael/hledger/blob/master/bin/paypalcsv) (python)
 converts `paypaljson`'s output to CSV, with format similar to Paypal's manually-downloaded CSV.
 
+Example usage with hledger 1.50+:
+call these in a CSV [rules file](https://hledger.org/hledger.html#csv) like: `source | paypaljson | paypalcsv`.
+Or, do the download externally with `paypaljson >paypal.json`,
+then convert to CSV in the rules file: `source | paypalcsv paypal.json`.
 
-## HLEDGER-RUNNING
+### simplefinsetup
 
-These scripts run hledger via its CLI,
-eg to help you produce a particular report without needing to remember a complicated command line. 
-They might also consume its text or CSV or JSON output.
-They can be
-small shell aliases or functions (typically defined in shell startup files like ~/.bashrc)
-or individual script files written in shell or another language (typically kept in ~/bin/ or elsewhere in $PATH).
+[`simplefinsetup`](https://github.com/simonmichael/hledger/blob/master/bin/simplefinsetup)
+helps set up access to SimpleFIN ([simplefin.org](https://simplefin.org)), a developer-friendly aggregator of US bank data.
+
+### simplefinjson
+
+[`simplefinjson`](https://github.com/simonmichael/hledger/blob/master/bin/simplefinjson)
+downloads data for one or more bank accounts from SimpleFIN's API, as JSON.
+
+### simplefincsv
+
+[`simplefincsv`](https://github.com/simonmichael/hledger/blob/master/bin/simplefincsv)
+converts SimpleFIN's JSON data to CSV, for one or more bank accounts.
+
+Example usage with hledger 1.50+:
+download multi-account JSON once with `simplefinjson >simplefin.json`,
+and in each account's CSV [rules file](https://hledger.org/hledger.html#csv), extract that account's CSV, eg:
+`source | simplefincsv simplefin.json 'wells fargo.*checking'`.
+See also [hledger and SimpleFIN](https://hledger.org/simplefin.html).
+
+## hledger command line scripts
+
+These scripts use hledger's command line interface, or process one of its output formats.
 
 ### bashrc
 
@@ -58,6 +94,131 @@ After installing the bin scripts: as a bash user,
 # customise FINDIR and LEDGER_FILE at the top of bin/bashrc
 $ . bin/bashrc
 $ fin        # list the scripts available
+```
+
+### ft
+
+[`ft`](https://github.com/simonmichael/hledger/blob/master/bin/ft)
+is a way to organise your finance-related reports and scripts using standard bash.
+(See also [Justfile](#justfile) below.)
+
+```cli
+$ alias f=~/src/hledger/bin/ft
+$ f
+--------------------------------------------------------------------------------"; }
+ft - finance tool: run financial reports and finance-related scripts
+Usage: ft [COMMAND [ARGS]]
+Commands:
+help           show this help
+get-csv        download auto-downloadable CSVs (paypal)
+import-dry     import new downloaded transactions to the journal, dry run
+import         import new downloaded transactions to the journal, logging and not printing errors
+get-prices     [PRICEHISTFETCHOPTS] - download prices for main commodities (default: today's)
+bs             show balance sheet
+is             show income statement
+a              show assets
+r              show revenues
+x              show expenses
+ab             show assets bar chart
+rb             show revenues bar chart
+xb             show expenses bar chart
+al             show assets line chart
+rl             show revenues line chart
+xl             show expenses line chart
+forecast       print transactions predicted by forecast rules from last week on
+household      show a draft month-end household adjustment transaction for last month
+consulting     show consulting revenue
+bin            [PAT]  show all scripts in $DIR/bin/[bashrc] (default: ~/finance/)
+OTHERCMD               [ARGS] run other hledger commands on the default journal
+
+Add hledger options to customise reports.
+```
+
+### tt
+
+[`tt`](https://github.com/simonmichael/hledger/blob/master/bin/tt)
+is a similar bash multi-script for time reports.
+
+```cli
+$ alias t=~/src/hledger/bin/tt
+$ t
+--------------------------------------------------------------------------------
+tt - time tool: run time reports and time-related scripts
+Usage: tt [COMMAND [ARGS]]
+Commands:
+help            show this help
+dash            show time dashboard, redisplaying when timelog files change
+status          show current time status
+what            what happened ? Show largest balances first, today and depth 1 by default
+dots            print line of N dots, grouped in 4s (suitable for timedot)
+x               horizontal time summary this year, monthly by default
+y               vertical time summary this year, monthly by default
+rweeks          recent weeks' time budgets
+weeks           this and last week's time budgets
+hours           show a bar chart of daily hours
+accunused       show unused / undeclared accounts
+accunusedcat    show unused / undeclared accounts by category
+accadd          add declarations for all undeclared accounts
+budgets         show monthly time budget performance this year
+budgetsy        show monthly time budget performance this year, vertically
+budgetsw        show weekly time budget performance this year
+budgetswx       show weekly time budget performance this year, horizontally
+OTHERCMD        [ARGS] run other hledger commands on $TIMELOG
+
+Add hledger options to customise reports.
+```
+
+### Justfile
+
+<https://github.com/casey/just> is a nice tool for organising financial reports and scripts,
+similar to `make`, but more robust for this use case. I can recommend it.
+See also [hledger and just](just.md).
+
+Here is a [Justfile](https://github.com/simonmichael/hledger/blob/master/bin/Justfile)
+reimplementing the `ft` and `tt` scripts more simply:
+
+```cli
+$ brew install just  # eg
+$ alias j=just
+$ cd ~/finance
+$ cp ~/src/hledger/bin/Justfile .  # or start from scratch: just --init
+$ j
+Justfile commands:
+    watch CMD                      # rerun the given command with watchexec whenever local files change
+    get-csv                        # download auto-downloadable CSVs (paypal)
+    import-dry                     # import new downloaded transactions to the main journal, dry run
+    import                         # import new downloaded transactions to the journal, logging and not printing errors
+    get-prices *PRICEHISTFETCHOPTS # show prices for main commodities (default: today's)
+    bs *HLEDGERARGS                # show balance sheet
+    is *HLEDGERARGS                # show income statement
+    a *HLEDGERARGS                 # show assets
+    r *HLEDGERARGS                 # show revenues
+    x *HLEDGERARGS                 # show expenses
+    ab *HLEDGERARGS                # show assets bar chart
+    rb *HLEDGERARGS                # show revenues bar chart
+    xb *HLEDGERARGS                # show expenses bar chart
+    al *HLEDGERARGS                # show assets line chart
+    rl *HLEDGERARGS                # show revenues line chart
+    xl *HLEDGERARGS                # show expenses line chart
+    forecast *HLEDGERARGS          # print transactions predicted by forecast rules from last week on
+    household *HLEDGERARGS         # show a draft month-end household adjustment transaction for last month
+    consulting *HLEDGERARGS        # show consulting revenue
+    tdash *HLEDGERARGS             # show time dashboard, redisplaying when timelog files change
+    tstatus *HLEDGERARGS           # show current time status
+    twhat *HLEDGERARGS             # what happened ? Show largest time balances first, today and depth 1 by default
+    tdots N                        # print line of N dots, grouped in 4s (suitable for timedot)
+    tx *HLEDGERARGS                # horizontal time summary this year, monthly by default
+    ty *HLEDGERARGS                # vertical time summary this year, monthly by default
+    tweeks *HLEDGERARGS            # this and last week's time budgets
+    tweekspast *HLEDGERARGS        # recent past weeks' time budgets
+    thours *HLEDGERARGS            # show a bar chart of daily hours
+    taccunused *HLEDGERARGS        # show unused / undeclared time accounts
+    taccunusedcat *HLEDGERARGS     # show unused / undeclared time accounts by category
+    taccadd *HLEDGERARGS           # add declarations for all undeclared time accounts
+    tbudgets *HLEDGERARGS          # show monthly time budget performance this year
+    tbudgetsy *HLEDGERARGS         # show monthly time budget performance this year, vertically
+    tbudgetsw *HLEDGERARGS         # show weekly time budget performance this year
+    tbudgetswx *HLEDGERARGS        # show weekly time budget performance this year, horizontally
 ```
 
 ### watchaccounts
@@ -73,13 +234,15 @@ $ watchaccounts -f time.journal client1 date:thismonth -l
 ### sortandmergepostings
 
 [`sortandmergepostings`](https://github.com/simonmichael/hledger/blob/master/bin/sortandmergepostings)
-can be used to cleanup and normalize postings.
-It will sort postings so that positive ones are first, negative ones last.
-Inside of that it sorts postings by account name alphabetically.
-Lastly it facilitates merging postings on transactions with more than one posting in the same direction on the same account.
-This works by removing the duplicates and cleaning the amount field for at-most one account per run
-Piping the output to `hledger print` can recalculate the missing amounts.
-Subsequent runs can cleanup further duplicates.
+is an adventuresome AWK script intended to clean up and merge similar postings in a transaction
+(see [original discussion](https://unix.stackexchange.com/questions/526995/re-order-lines-and-merge-others-based-on-a-specific-criteria/527004)).
+It sorts postings so that positive ones are first, negative ones last.
+Within each sign, postings are sorted by commodity.
+Within each commodity group, postings are sorted by amount.
+Among identical amounts in the same group, postings are sorted alphabetically by account name.
+Once sorted, if there are multiple postings to the same account in the same direction with the same commodity and comments, it tries to merge them (by leaving some amounts blank).
+Subsequently piping the output to `hledger print` can recalculate the missing amounts.
+Multiple runs might be needed to clean up all duplicates.
 ```cli
 $ sortandmergepostings input.journal | hledger -f - print -x
 ```
@@ -108,33 +271,64 @@ $ hledger bar reimbursement
 ```
 
 ```cli
-$ hledger bar                                        # show help
-$ hledger bar food                                   # monthly food expenses
-$ hledger bar -- 1 --count food                      # monthly food posting counts
-$ hledger bar -- type:c not:tag:clopen cur:\\\\$ -W  # weekly cashflow, $ only
-$ hledger bar -- type:al not:tag:clopen cur:\\\\$    # monthly net worth change ($)
-$ hledger bar -- type:rx --invert cur:\\\\$          # monthly profit/loss ($)
-$ hledger bar -- -v 1 -f $TIMELOG -D                 # daily hours, with numbers
+$ hledger bar                                     # show help
+$ hledger bar food                                # monthly food expenses
+$ hledger bar 1 --count food                      # monthly food posting counts
+$ hledger bar type:c not:tag:clopen cur:\\\\$ -W  # weekly cashflow, $ only
+$ hledger bar type:al not:tag:clopen cur:\\\\$    # monthly net worth change ($)
+$ hledger bar type:rx --invert cur:\\\\$          # monthly profit/loss ($)
+$ hledger bar -v 1 -f $TIMELOG -D                 # daily hours, with numbers
 ```
+(or with hledger <1.50: `hledger bar -- ...`)
+
+### hledger-check-buynothing
+
+[`hledger-check-buynothing`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-check-buynothing)
+checks for no activity in Expense accounts on Buy Nothing Day (or other period).
 
 ### hledger-git
 
 [`hledger-git`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-git)
-provides easy version control for your journal files, using git. Run it with no arguments for help.
+provides easy version control for your journal files, using [git](https://git-scm.com).
+Run it with no arguments for help.
 ```cli
 $ hledger git log
 $ hledger git status
 $ hledger git record [MSG]
 ```
 
+### hledger-jj
+
+[`hledger-jj`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-jj)
+provides easy version control for your journal files, using [jj](https://jj-vcs.github.io)
+(and a git repo).
+This is newer and better than hledger-git and hledger-pijul.
+Unlike most shell scripts here, it requires [ysh](https://oils.pub).
+```cli
+$ hledger jj log
+$ hledger jj status
+$ hledger jj diff
+$ hledger jj commit [MSG]
+```
+
 ### hledger-pijul
 
 [`hledger-pijul`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-pijul)
-provides the same thing using the [pijul](https://pijul.org) version control system..
+provides easy version control for your journal files, using the [pijul](https://pijul.org) version control system.
 ```cli
 $ hledger pijul log
 $ hledger pijul status
 $ hledger pijul record [MSG]
+```
+
+### hledger-dc
+
+[`hledger-dc`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-dc)
+reads journal files which use a Dr/Cr notation instead of/in addition to amount signs:
+```journal
+2025-01-01 salary
+    Cr revenues            800 USD
+    Dr assets
 ```
 
 ### hledger-edit
@@ -143,7 +337,7 @@ The [hledger-utils python package](https://pypi.org/project/hledger-utils/) prov
 a `hledger-edit` command to edit the queried transactions in your `$EDITOR` no matter what file they reside in.
 
 Install or upgrade:
-```shell
+```cli
 $ pip install -U hledger-utils    # might be slightly different on your system
 ```
 
@@ -163,18 +357,20 @@ EDITOR='perl -pi -e "s|Cost:Food|Cost:Food:Fast Food|g"' hledger edit tag:locati
 [![asciicast](https://asciinema.org/a/549559.svg)](https://asciinema.org/a/549559)
 
 ### hledger-plot
+
 The [hledger-utils python package](https://pypi.org/project/hledger-utils/) provides
 a `hledger-plot` command for generating charts with matplotlib.
 
 Install or upgrade:
-```shell
+```cli
 $ pip install -U hledger-utils    # might be slightly different on your system
 ```
 Examples:
 ```
 $ hledger-plot -h
-$ hledger plot -- bal -DH ^Assets -2
+$ hledger plot bal -DH ^Assets -2
 ```
+(or with hledger <1.50: `hledger plot -- ...`)
 
 ### hledger-lots
 
@@ -193,10 +389,55 @@ $ hledger lots view
 $ hledger lots list
 ```
 
-## HLEDGER-INTEGRATED
+### hledger-report1.sh
 
-These Haskell scripts use the hledger-lib API for maximum power and robustness;
-they can do anything hledger's built-in commands can do.
+[hledger-report1.sh](https://github.com/simonmichael/hledger/blob/master/bin/hledger-report1.sh)
+is a custom compound report done in shell. See also hledger-report1.hs.
+
+### hledger-timedothm
+
+[`hledger-timedothm`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-timedothm)
+reads timedot files which support HOURS:MINUTES notation:
+```timedot
+2025-09-27
+time  ..
+time  0.5
+time  30m
+time  0:30  ; new H:M syntax
+```
+and it displays amounts in that notation:
+```cli
+$ hledger timedothm sample.timedothm reg -w80
+2025-09-27                      (time)                        0:30          0:30
+                                (time)                        0:30          1:00
+                                (time)                        0:30          1:30
+                                (time)                        0:30          2:00
+```
+
+### hledgerj1
+
+[`hledgerj1`](https://github.com/simonmichael/hledger/blob/master/bin/hledgerj1)
+is a small example of a wrapper script that preprocesses the journal,
+converting it from a custom format, in this case a one-line journal format
+where slash represents newline. Eg:
+```text
+2025-01-04 shopping / assets:bank:checking / expenses:food  200 USD / expenses:supplies  50 USD
+```
+```cli
+$ hledgerj1 a.j1 print
+2025-01-04 shopping
+    assets:bank:checking
+    expenses:food                200 USD
+    expenses:supplies             50 USD
+
+```
+
+## hledger haskell scripts
+
+These scripts are written in Haskell and use hledger's haskell API (by importing the `hledger` or `hledger-lib` haskell libraries).
+They are often [stack scripts](https://docs.haskellstack.org/en/stable/topics/scripts).
+They can do anything hledger's builtin commands can do, and are usually more robust than command line scripts.
+Some builtin commands were first developed as standalone haskell scripts.
 
 ### hledger-script-example
 
@@ -206,20 +447,6 @@ It has the same structure as most of the add-ons here:
 - a stack script for robustness
 - providing command line help
 - accepting common hledger options
-
-### hledger-print-location
-
-[`hledger-print-location.hs`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-print-location.hs)
-is a variant of hledger's `print` command
-that adds the file and line number to every transaction, as a tag:
-```cli
-$ hledger print-location -f hledger/examples/sample.journal desc:eat
-2008/06/03 * eat & shop
-  ; location: /Users/simon/src/hledger/examples/sample.journal:30
-  expenses:food                  $1
-  expenses:supplies              $1
-  assets:cash
-```
 
 ### hledger-swap-dates
 
@@ -241,7 +468,7 @@ runs a register report and prints the posting with largest historical balance.
 ```cli
 $ hledger-register-max -f examples/bcexample.hledger checking
 2013-01-03 Hoogle | Payroll  Assets:US:BofA:Checking      1350.60 USD  8799.22 USD
-$ hledger register-max -- -f examples/bcexample.hledger checking
+$ hledger register-max -f examples/bcexample.hledger checking
 2013-01-03 Hoogle | Payroll  Assets:US:BofA:Checking      1350.60 USD  8799.22 USD
 ```
 
@@ -272,6 +499,17 @@ shows balance reports for two different periods side by side.
 [`hledger-balance-as-budget.hs`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-balance-as-budget.hs)
 uses one balance report to set budget goals for another balance report.
 
+This is useful for compare-and-contrast reports. You can, for example, use a previous year as a budget for this year, and see
+how this year spending compares to your past spending.
+
+### hledger-balance-as-budget-multi
+
+[`hledger-balance-as-budget.hs`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-balance-as-budget-multi.hs)
+uses one balance report to set budget goals for another balance report, and allows you to run multiple balance commands on them.
+
+Like `hledger run`, this will load journals only once, and will be significantly faster than calling `hledger-balance-as-budget`
+multiple times.
+
 ### hledger-smooth
 
 [`hledger-smooth.hs`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-smooth.hs)
@@ -282,16 +520,63 @@ is an incomplete attempt at automatically splitting infrequent/irregular transac
 [`hledger-move.hs`](https://github.com/simonmichael/hledger/blob/master/bin/hledger-move.hs)
 helps make subaccount/cost-preserving transfers.
 
+### hledger-report1.hs
 
-## HOW TO
+[hledger-report1.hs](https://github.com/simonmichael/hledger/blob/master/bin/hledger-report1.hs)
+is a custom compound report done in haskell. See also hledger-report1.sh.
+
+### hledger-txnsbycat.hs
+
+[hledger-txnsbycat.hs](https://github.com/brianhv/hledger-scripts/blob/main/hledger-txnsbycat.hs)
+is a mixture of a balance report and a register report; it shows each account's transactions
+under the account's balance.
+
+## Add-ons
+
+These are some official and third-party add-ons you can install as compiled programs:
+
+### hledger-ui
+
+[hledger-ui](hledger-ui.html) is hledger's official terminal UI. It allows faster browsing of your accounts and transactions.
+
+### hledger-web
+
+[hledger-web](hledger-web.html) is hledger's official web UI. It allows data entry and simple reports in a web browser. It's good for non-command-line users.
+
+### hledger-iadd
+
+[hledger-iadd](https://hackage.haskell.org/package/hledger-iadd) is a popular alternative to the builtin `add` command.
+
+### hledger-interest
+
+[hledger-interest](https://hackage.haskell.org/package/hledger-interest) generates interest transactions.
+
+Notes (as of 1.6.7):
+
+- Use the <https://github.com/peti/hledger-interest#readme>, it's better than the command line help or hackage description.
+- hledger-interest silently ignores $LEDGER_FILE, so be sure to provide a file name explicitly with -f.
+
+### hledger-sankeymatic
+
+[hledger-sankeymatic](https://github.com/victormihalache/hledger-sankeymatic) helps export hledger data to make flow diagrams at <https://sankeymatic.com>.
+See also [Charts](charts.md).
+
+### Other
+
+- [hledger-stockquotes](https://hackage.haskell.org/package/hledger-stockquotes) fetches market prices. Not widely used, use pricehist instead.
+- [hledger-diff](https://hackage.haskell.org/package/hledger-diff) compares two journal files. It's now built in to hledger, so you don't need it.
+
+
+
+## How to...
 
 ### Install scripts
 
 To use these bin scripts you must ensure they are in your $PATH and runnable:
 
-- Shell scripts: you may need [bash], or to adapt the scripts for your shell.
+- Shell scripts: you may need [bash](https://www.gnu.org/software/bash), or to adapt the scripts for your shell.
 - Python scripts: you'll need python 3 and pip. 
-- Haskell scripts: you'll need stack (<https://www.haskell.org/get-started>).
+- Haskell scripts: you'll need [stack](http://haskellstack.org).
 Or if you know how, you can make them cabal scripts, or install their dependencies manually and use runghc/ghc.
 
 Here's a suggested install procedure:
@@ -323,16 +608,7 @@ $ pip install -U hledger-lots
 # Check that hledger's command list now includes the bin scripts.
 # Eg "check-fancyassertions" and "swap-dates" should be listed:
 $ hledger
-
-
 ```
-
-[bash]: https://www.gnu.org/software/bash
-[stack]: https://haskellstack.org
-[stack]: https://www.fpcomplete.com/haskell/get-started
-[stack scripts]: https://docs.haskellstack.org/en/stable/GUIDE/#script-interpreter
-[add-on commands]: https://hledger.org/dev/hledger.html#add-on-commands
-[cabal]: https://www.haskell.org/cabal
 
 ### Create a new script
 
@@ -348,7 +624,7 @@ On unix, the new script should be marked executable. This should do it:
       My new cmd command.
       ...
     $ stack ghc hledger-cmd.hs  # optionally compile for faster startup/durability
-    $ hledger cmd -- --help
+    $ hledger cmd --help
     cmd [OPTIONS]
       My new cmd command.
       ...

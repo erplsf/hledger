@@ -6,16 +6,15 @@ _notinfo_({{
 # NAME
 }})
 
-hledger-web - robust, friendly plain text accounting (Web version)
+hledger-web - web interface and API for `hledger`, a robust, friendly plain text accounting app.
 
 _notinfo_({{
 # SYNOPSIS
 }})
 
-`hledger-web [OPTIONS]                  # run temporarily & browse`\
-`hledger-web --serve [OPTIONS]          # run without stopping`\
-`hledger-web --serve-api [OPTIONS]      # run JSON server only`\
-`hledger web -- [OPTIONS] [QUERYARGS]`  # start from hledger
+`hledger-web [OPTS] [QUERY]`\
+or\
+`hledger web [OPTS] [QUERY]`
 
 _notinfo_({{
 # DESCRIPTION
@@ -47,134 +46,117 @@ behind a suitable web proxy.  As a small protection against data loss
 when running an unprotected instance, it writes a numbered backup of
 the main journal file (only) on every edit.
 
-Like hledger, it reads _inputfiles_
-For more about this see hledger(1).
+Like hledger, it _inputfileswithptr_
 
 hledger-web can be run in three modes:
 
-- Transient mode (the default):
-  your default web browser will be opened to show the app if possible,
-  and the app exits automatically after two minutes of inactivity
-  (no requests received and no open browser windows viewing it).
+- `--serve-browse` mode (the default):
+  the app serves the web UI and JSON API,
+  and opens your default web browser to show the app if possible,
+  and exits automatically after two minutes of inactivity
+  (with no requests received and no open browser windows viewing it).
 
-- With `--serve`: the app runs without stopping, and without opening a browser.
+- `--serve`: the app just serves the web UI and JSON API.
 
-- With `--serve-api`: only the JSON API is served.
+- `--serve-api`: the app just serves the JSON API.
 
 In all cases hledger-web runs as a foreground process, logging requests to stdout.
 
 # OPTIONS
 
-Command-line options and arguments may be used to set an initial
-filter on the data. These filter options are not shown in the web UI,
-but it will be applied in addition to any search query entered there.
-
-Note: if invoking hledger-web as a hledger subcommand, write `--` before options,
-as shown in the synopsis above.
-
-`--serve`
-: serve and log requests, don't browse or auto-exit after timeout
-
-`--serve-api`
-: like --serve, but serve only the JSON web API, without the server-side web UI
-
-`--host=IPADDR`
-: listen on this IP address (default: 127.0.0.1)
-
-`--port=PORT`
-: listen on this TCP port (default: 5000)
-
-`--socket=SOCKETFILE`
-: use a unix domain socket file to listen for requests instead of a TCP socket. Implies
-`--serve`. It can only be used if the operating system can provide this type of socket.
-
-`--base-url=URL`
-: set the base url (default: http://IPADDR:PORT).
-Note: affects url generation but not route parsing.
-Can be useful if running behind a reverse web proxy that does path rewriting.
-
-`--file-url=URL`
-: set the static files url (default: BASEURL/static).
-hledger-web normally serves static files itself, but if you wanted to
-serve them from another server for efficiency, you would set the url with this.
-
-`--capabilities=CAP[,CAP..]`
-: enable the view, add, and/or manage capabilities (default: view,add)
-
-`--capabilities-header=HTTPHEADER`
-: read capabilities to enable from a HTTP header, like X-Sandstorm-Permissions (default: disabled)
-
-`--test`
-: run hledger-web's tests and exit. hspec test runner args may follow a --, eg: hledger-web --test -- --help
-
-hledger input options:
-
-_inputoptions_
-
-hledger reporting options:
-
-_reportingoptions_
-
-hledger help options:
-
-_helpoptions_
-
-A @FILE argument will be expanded to the contents of FILE,
-which should contain one command line option/argument per line.
-(To prevent this, insert a `--` argument before.)
-
-By default the server listens on IP address 127.0.0.1, accessible only to local requests.
-You can use `--host` to change this, eg `--host 0.0.0.0` to listen on all configured addresses.
-
-Similarly, use `--port` to set a TCP port other than 5000, eg if you are
-running multiple hledger-web instances.
-
-Both of these options are ignored when `--socket` is used. In this case, it
-creates an `AF_UNIX` socket file at the supplied path and uses that for communication.
-This is an alternative way of running multiple hledger-web instances behind
-a reverse proxy that handles authentication for different users.
-The path can be derived in a predictable way, eg by using the username within the path.
-As an example, `nginx` as reverse proxy can use the variable `$remote_user` to
-derive a path from the username used in a [HTTP basic authentication](https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-http-basic-authentication/).
-The following `proxy_pass` directive allows access to all `hledger-web`
-instances that created a socket in `/tmp/hledger/`:
+hledger-web provides the following options:
 
 ```
-  proxy_pass http://unix:/tmp/hledger/${remote_user}.socket;
+Flags:
+     --serve --server       serve and log requests, don't browse or auto-exit
+     --serve-api            like --serve, but serve only the JSON web API,
+                            not the web UI
+     --allow=view|add|edit  set the user's access level for changing data
+                            (default: `add`). It also accepts `sandstorm` for
+                            use on that platform (reads permissions from the
+                            `X-Sandstorm-Permissions` request header).
+     --cors=ORIGIN          allow cross-origin requests from the specified
+                            origin; setting ORIGIN to "*" allows requests from
+                            any origin
+     --host=IPADDR          listen on this IP address (default: 127.0.0.1)
+     --port=PORT            listen on this TCP port (default: 5000)
+     --socket=SOCKET        listen on the given unix socket instead of an IP
+                            address and port (unix only; implies --serve)
+     --base-url=BASEURL     set the base url (default: http://IPADDR:PORT)
+     --test                 run hledger-web's tests and exit. hspec test
+                            runner args may follow a --, eg: hledger-web --test
+                            --help
 ```
 
-You can use `--base-url` to change the protocol, hostname, port and path that appear in hyperlinks,
-useful eg for integrating hledger-web within a larger website.
+By default hledger-web listens only on IP address `127.0.0.1`,
+which be accessed only from the local machine.
+
+To allow access from elsewhere, use `--host` to specify an externally accessible address configured on this machine,
+The special address `0.0.0.0` causes it to listen on all of this machine's addresses.
+
+Similarly, you can use `--port` to listen on a TCP port other than 5000.
+This is useful if you want to run multiple hledger-web instances on a machine.
+
+When `--socket` is used, hledger-web creates and communicates via a socket file instead of a TCP port.
+This can be more secure, respects unix file permissions, and makes certain use cases easier,
+such as running per-user instances behind an nginx reverse proxy. (Eg:
+`proxy_pass http://unix:/tmp/hledger/${remote_user}.socket;`.)
+
+You can use `--base-url` to change the protocol, hostname, port and path that appear in
+hledger-web's hyperlinks. This is useful eg when integrating hledger-web within a larger website.
 The default is `http://HOST:PORT/` using the server's configured host address and TCP port
 (or `http://HOST` if PORT is 80).
+Note this affects url generation but not route parsing.
 
-With `--file-url` you can set a different base url for static files,
-eg for better caching or cookie-less serving on high performance websites.
+<!--  #2139
+`--file-url=URL`
+: set a different base url for static files (default: `BASEURL/static/`)
+
+hledger-web normally serves static files itself, 
+but if you wanted to serve them from another server,
+eg for better caching or cookie-less serving on high performance websites,
+you can customise their urls with this.
+-->
+
+hledger-web also supports many of hledger's [general options](hledger.md#options):
+
+_generaloptions_
+
+hledger-web shows accounts with zero balances by default (like `hledger-ui`, and unlike `hledger`).
+Using the `-E/--empty` flag will reverse this behaviour.
+If you see accounts which appear to have a zero balance, but cannot be hidden with `-E`,
+it's because they have a mixed-cost balance, which looks like zero when costs are hidden.
+(hledger-web does not show costs.)
+
+Reporting options and/or query arguments can be used to set an initial query,
+which although not shown in the UI, will restrict the data shown
+(in addition to any search query entered in the UI).
+
+If you use the bash shell, you can auto-complete flags by pressing TAB in the command line.
+If this is not working see [Install > Shell completions](install.html#shell-completions).
 
 # PERMISSIONS
 
 By default, hledger-web allows anyone who can reach it to view the journal
 and to add new transactions, but not to change existing data.
 
-You can restrict who can reach it by
+You can restrict who can reach it, by
 
 - setting the IP address it listens on (see `--host` above).
-  By default it listens on 127.0.0.1, accessible to all users on the local machine.
-- putting it behind an authenticating proxy, using eg apache or nginx
-- custom firewall rules
+  By default it listens on 127.0.0.1, accessible to users on the local machine only.
+- putting it behind an authenticating proxy, such as caddy or apache
+- putting it behind a firewall
 
-You can restrict what the users who reach it can do, by
+And you can restrict what the users reaching it can do,
+by specifying the `--allow=ACCESSLEVEL` option at startup.
+ACCESSLEVEL is one of:
 
-- using the `--capabilities=CAP[,CAP..]` flag when you start it,
-  enabling one or more of the following capabilities. The default value is `view,add`:
-  - `view`   - allows viewing the journal file and all included files
-  - `add`    - allows adding new transactions to the main journal file
-  - `manage` - allows editing, uploading or downloading the main or included files
+- `view` - allows viewing the journal file(s)
+- `add`  - also allows adding new transactions to the main journal file
+- `edit` - also allows editing, uploading or downloading the journal file(s)
+- `sandstorm` - (for the hledger-web Sandstorm app:) allows whichever of `view`, `add`, or `edit` are specified in the `X-Sandstorm-Permissions` HTTP header
 
-- using the `--capabilities-header=HTTPHEADER` flag to specify a HTTP header
-  from which it will read capabilities to enable. hledger-web on Sandstorm
-  uses the X-Sandstorm-Permissions header to integrate with Sandstorm's permissions.
-  This is disabled by default.
+The default access level is `add`.
 
 # EDITING, UPLOADING, DOWNLOADING
 
@@ -213,7 +195,7 @@ In addition to the web UI, hledger-web also serves a JSON API that can be
 used to get data or add new transactions.
 If you want the JSON API only, you can use the `--serve-api` flag. Eg:
 
-```shell
+```cli
 $ hledger-web -f examples/sample.journal --serve-api
 ...
 ```
@@ -233,7 +215,7 @@ You can get JSON data from these routes:
 Eg, all account names in the journal (similar to the [accounts](hledger.html#accounts) command).
 (hledger-web's JSON does not include newlines, here we use python to prettify it):
 
-```shell
+```cli
 $ curl -s http://127.0.0.1:5000/accountnames | python -m json.tool
 [
     "assets",
@@ -254,7 +236,7 @@ $ curl -s http://127.0.0.1:5000/accountnames | python -m json.tool
 
 Or all transactions:
 
-```shell
+```cli
 $ curl -s http://127.0.0.1:5000/transactions | python -m json.tool
 [
     {
@@ -280,6 +262,9 @@ Most of the JSON corresponds to hledger's data types; for details of what the fi
 and click on the various data types, eg 
 [Transaction](https://hackage.haskell.org/package/hledger-lib-1.17.1/docs/Hledger-Data-Types.html#t:Transaction).
 And for a higher level understanding, see the [journal docs](hledger.html#journal).
+There is also a basic [OpenAPI specification][openapi.yaml].
+
+[openapi.yaml]: https://github.com/simonmichael/hledger/blob/master/hledger-web/config/openapi.yaml
 
 In some cases there is outer JSON corresponding to a "Report" type.
 To understand that, go to the
@@ -300,7 +285,7 @@ The payload must be the full, exact JSON representation of a hledger transaction
 You can get sample JSON from hledger-web's `/transactions` or `/accounttransactions`,
 or you can export it with hledger-lib, eg like so:
 
-```shell
+```cli
 .../hledger$ stack ghci hledger-lib
 >>> writeJsonFile "txn.json" (head $ jtxns samplejournal)
 >>> :q
@@ -401,7 +386,7 @@ and related data types):
 
 And here's how to test adding it with curl. This should add a new entry to your journal:
 
-```shell
+```cli
 $ curl http://127.0.0.1:5000/add -X PUT -H 'Content-Type: application/json' --data-binary @txn.json
 ```
 
@@ -418,18 +403,14 @@ To capture debug output in a log file instead, you can usually redirect stderr, 
 
 # ENVIRONMENT
 
-_LEDGER_FILE_
-
-# FILES
-
-Reads _inputfiles_
+**LEDGER_FILE**
+The main journal file to use when not specified with `-f/--file`.
+Default: `$HOME/.hledger.journal`.
 
 # BUGS
 
-`-f-` doesn't work (hledger-web can't read from stdin).
+_reportbugs_
 
-Query arguments and some hledger options are ignored.
+Some known issues:
 
-Does not work in text-mode browsers.
-
-Does not work well on small screens.
+Does not work well on small screens, or in text-mode browsers.

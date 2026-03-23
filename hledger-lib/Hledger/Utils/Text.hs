@@ -6,8 +6,7 @@
 module Hledger.Utils.Text
   (
   -- * misc
-  -- lowercase,
-  -- uppercase,
+  textCapitalise,
   -- underline,
   -- stripbrackets,
   textUnbracket,
@@ -20,10 +19,10 @@ module Hledger.Utils.Text
   -- quotechars,
   -- whitespacechars,
   escapeDoubleQuotes,
+  escapeBackslash,
   -- escapeSingleQuotes,
   -- escapeQuotes,
   -- words',
-  -- unwords',
   stripquotes,
   -- isSingleQuoted,
   -- isDoubleQuoted,
@@ -55,9 +54,9 @@ import Data.Char (digitToInt)
 import Data.Default (def)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Builder as TB
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.Builder qualified as TB
 import Text.DocLayout (charWidth, realLength)
 
 import Test.Tasty (testGroup)
@@ -67,9 +66,8 @@ import Text.Tabular.AsciiWide
 import Text.WideString (WideBuilder(..), wbToText, wbFromText, wbUnpack)
 
 
--- lowercase, uppercase :: String -> String
--- lowercase = map toLower
--- uppercase = map toUpper
+textCapitalise :: Text -> Text
+textCapitalise t = T.toTitle c <> cs where (c,cs) = T.splitAt 1 t
 
 -- stripbrackets :: String -> String
 -- stripbrackets = dropWhile (`elem` "([") . reverse . dropWhile (`elem` "])") . reverse :: String -> String
@@ -141,6 +139,9 @@ whitespacechars = " \t\n\r"
 escapeDoubleQuotes :: T.Text -> T.Text
 escapeDoubleQuotes = T.replace "\"" "\\\""
 
+escapeBackslash :: T.Text -> T.Text
+escapeBackslash = T.replace "\\" "\\\\"
+
 -- escapeSingleQuotes :: T.Text -> T.Text
 -- escapeSingleQuotes = T.replace "'" "\'"
 
@@ -159,10 +160,6 @@ escapeDoubleQuotes = T.replace "\"" "\\\""
 --       pattern = many (noneOf whitespacechars)
 --       singleQuotedPattern = between (char '\'') (char '\'') (many $ noneOf "'")
 --       doubleQuotedPattern = between (char '"') (char '"') (many $ noneOf "\"")
-
--- -- | Quote-aware version of unwords - single-quote strings which contain whitespace
--- unwords' :: [Text] -> Text
--- unwords' = T.unwords . map quoteIfNeeded
 
 -- | Strip one matching pair of single or double quotes on the ends of a string.
 stripquotes :: Text -> Text
@@ -214,7 +211,7 @@ fitText mminwidth mmaxwidth ellipsify rightside = clip . pad
     clip s =
       case mmaxwidth of
         Just w
-          | realLength s > w ->
+          | realLength s > max 0 w ->
             if rightside
               then textTakeWidth (w - T.length ellipsis) s <> ellipsis
               else ellipsis <> T.reverse (textTakeWidth (w - T.length ellipsis) $ T.reverse s)
@@ -290,5 +287,9 @@ tests_Text = testGroup "Text" [
      textUnbracket "[([]())]" @?= "[]()"
      textUnbracket "[([[[()]]])]" @?= ""
      textUnbracket "[([[[(]]])]" @?= "("
-     textUnbracket "[([[[)]]])]" @?= ")"
+     textUnbracket "[([[[)]]])]" @?= ")",
+   testCase "fitText" $ do
+     fitText Nothing (Just (-2)) True True "" @?= ""
+     fitText Nothing (Just 0) True True "" @?= ""
+     fitText Nothing (Just 6) True True "Test Text" @?= "Test.."
   ]

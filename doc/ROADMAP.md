@@ -1,16 +1,25 @@
 # ROADMAP
 
-<div class="pagetoc">
-
-<!-- toc -->
-</div>
-
-
 Ideas of where the hledger project should be going next.
 Being listed here suggests a bit of commitment, perhaps even a schedule.
-Related:
-<http://projects.hledger.org>,
-[TODO](TODO.md).
+
+See also: [ACHIEVEMENTS](ACHIEVEMENTS.md)
+
+## 2025
+
+- progress on automated lot tracking
+- fix hledger-ui --watch memory leak
+- up-to-date, effective project finance reports
+- easier file/script management when importing
+- easier setup & get started process
+
+## 2024
+
+**Targets:**
+- hledger 1.41, december
+- hledger 1.40, september
+- hledger 1.34, june
+- hledger 1.33, april
 
 ## 2023
 
@@ -18,10 +27,10 @@ Related:
 - hledger 1.32, december
 - hledger 1.31, september
 - hledger 1.30, june
-  - demos: built in asciinema demos and maintenance process
-  - ghc 9.6 support
-  - process/tools improvement
-  - docs improvement
+  - demos: built in asciinema demos and maintenance process *done, 4 simple demos*
+  - ghc 9.6 support *partly done, hledger-web is blocked on deps*
+  - process/tools improvement *done*
+  - docs improvement *done: 115 doc commits + 112 site commits, manual cleanups & rewrites*
 - hledger 1.29, march
 
 **Goals:**

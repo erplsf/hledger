@@ -1,5 +1,8 @@
-hledger github actions workflows.
+The hledger project's github actions workflows.
 
+They have greppable one-line TRIGGER: and ACTION: comments near the top,
+summarising their current intended behaviour.
+These are carefully worded and should be kept up to date.
 
 docs:
 
@@ -34,3 +37,5 @@ https://github.com/mxschmitt/action-tmate
 https://kodimensional.dev/github-actions
  "Dead simple cross-platform GitHub Actions for Haskell"
 
+https://github.com/actions/runner-images/tree/main?tab=readme-ov-file#available-images
+https://github.com/actions/partner-runner-images/tree/main?tab=readme-ov-file#available-images

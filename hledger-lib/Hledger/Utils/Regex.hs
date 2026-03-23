@@ -1,7 +1,3 @@
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
 {-|
 
 Easy regular expression helpers, currently based on regex-tdfa. These should:
@@ -42,6 +38,12 @@ Current limitations:
 
 -}
 
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+
 module Hledger.Utils.Regex (
   -- * Regexp type and constructors
    Regexp(reString)
@@ -55,20 +57,24 @@ module Hledger.Utils.Regex (
    -- * total regex operations
   ,regexMatch
   ,regexMatchText
+  ,regexMatchTextGroups
   ,regexReplace
   ,regexReplaceUnmemo
   ,regexReplaceAllBy
   )
 where
 
+import Control.DeepSeq (NFData(..), rwhnf)
 import Control.Monad (foldM)
 import Data.Aeson (ToJSON(..), Value(String))
 import Data.Array ((!), elems, indices)
 import Data.Char (isDigit)
+#if !MIN_VERSION_base(4,20,0)
 import Data.List (foldl')
+#endif
 import Data.MemoUgly (memo)
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Text.Regex.TDFA (
   Regex, CompOption(..), defaultCompOpt, defaultExecOpt,
   makeRegexOptsM, AllMatches(getAllMatches), match, MatchText,
@@ -123,6 +129,8 @@ instance RegexContext Regexp String String where
   match = match . reCompiled
   matchM = matchM . reCompiled
 
+instance NFData Regexp where rnf = rwhnf
+
 -- Convert a Regexp string to a compiled Regex, or return an error message.
 toRegex :: Text -> Either RegexError Regexp
 toRegex = memo $ \s -> mkRegexErr s (Regexp s <$> makeRegexM (T.unpack s))  -- Have to unpack here because Text instance in regex-tdfa only appears in 1.3.1
@@ -134,7 +142,7 @@ toRegexCI = memo $ \s -> mkRegexErr s (RegexpCI s <$> makeRegexOptsM defaultComp
 -- | Make a nice error message for a regexp error.
 mkRegexErr :: Text -> Maybe a -> Either RegexError a
 mkRegexErr s = maybe (Left errmsg) Right
-  where errmsg = T.unpack $ "This regular expression is malformed, please correct it:\n" <> s
+  where errmsg = T.unpack $ "This regular expression is invalid or unsupported, please correct it:\n" <> s
 
 -- Convert a Regexp string to a compiled Regex, throw an error
 toRegex' :: Text -> Regexp
@@ -161,10 +169,18 @@ regexMatch = matchTest
 
 -- | Tests whether a Regexp matches a Text.
 --
--- This currently unpacks the Text to a String an works on that. This is due to
--- a performance bug in regex-tdfa (#9), which may or may not be relevant here.
+-- This currently unpacks the Text to a String, to work around a performance bug
+-- in regex-tdfa (#9), which may or may not be relevant here.
 regexMatchText :: Regexp -> Text -> Bool
 regexMatchText r = matchTest r . T.unpack
+
+-- | Return a (possibly empty) list of match groups derived by applying the
+-- Regex to a Text.
+regexMatchTextGroups :: Regexp -> Text -> [Text]
+regexMatchTextGroups r txt = let
+    pat = reCompiled r
+    (_,_,_,matches) = match pat txt :: (Text,Text,Text,[Text])
+    in matches
 
 --------------------------------------------------------------------------------
 -- new total functions

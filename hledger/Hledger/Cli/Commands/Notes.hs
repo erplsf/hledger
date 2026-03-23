@@ -16,7 +16,7 @@ module Hledger.Cli.Commands.Notes (
 ) where
 
 import Data.List.Extra (nubSort)
-import qualified Data.Text.IO as T
+import Data.Text.IO qualified as T
 
 import Hledger
 import Hledger.Cli.CliOptions
@@ -26,7 +26,7 @@ import Hledger.Cli.CliOptions
 notesmode = hledgerCommandMode
   $(embedFileRelative "Hledger/Cli/Commands/Notes.txt")
   []
-  [generalflagsgroup1]
+  cligeneralflagsgroups1
   hiddenflags
   ([], Just $ argsFlag "[QUERY]")
 

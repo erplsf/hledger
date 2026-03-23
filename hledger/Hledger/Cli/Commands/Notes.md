@@ -2,7 +2,10 @@
 
 List the unique notes that appear in transactions.
 
-_FLAGS
+```flags
+Flags:
+no command-specific flags
+```
 
 This command lists the unique notes that appear in transactions,
 in alphabetic order.
@@ -11,7 +14,7 @@ The note is the part of the transaction description after a | character
 (or if there is no |, the whole description).
 
 Example:
-```shell
+```cli
 $ hledger notes
 Petrol
 Snacks

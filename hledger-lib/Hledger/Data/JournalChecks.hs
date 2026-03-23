@@ -6,10 +6,11 @@ others can be called only via the check command.
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Hledger.Data.JournalChecks (
+  journalStrictChecks,
   journalCheckAccounts,
+  journalCheckBalanceAssertions,
   journalCheckCommodities,
   journalCheckPayees,
   journalCheckPairedConversionPostings,
@@ -23,21 +24,33 @@ where
 import Data.Char (isSpace)
 import Data.List.Extra
 import Data.Maybe
-import qualified Data.Map.Strict as M
-import qualified Data.Text as T
-import Safe (atMay, lastMay)
+import Data.Map.Strict qualified as M
+import Data.Text qualified as T
+import Safe (atMay, lastMay, headMay)
 import Text.Printf (printf)
 
 import Hledger.Data.Errors
 import Hledger.Data.Journal
 import Hledger.Data.JournalChecks.Ordereddates
 import Hledger.Data.JournalChecks.Uniqueleafnames
-import Hledger.Data.Posting (isVirtual, postingDate, postingStatus, transactionAllTags)
+import Hledger.Data.Posting (isVirtual, postingDate, transactionAllTags, conversionPostingTagName, costPostingTagName, postingAsLines, generatedPostingTagName, generatedTransactionTagName, modifiedTransactionTagName)
 import Hledger.Data.Types
-import Hledger.Data.Amount (amountIsZero, amountsRaw, missingamt)
+import Hledger.Data.Amount (amountIsZero, amountsRaw, missingamt, oneLineFmt, showMixedAmountWith)
 import Hledger.Data.Transaction (transactionPayee, showTransactionLineFirstPart, partitionAndCheckConversionPostings)
-import Data.Time (Day, diffDays)
+import Data.Time (diffDays)
 import Hledger.Utils
+import Data.Ord
+import Hledger.Data.Dates (showDate)
+import Hledger.Data.Balancing (journalBalanceTransactions, defbalancingopts)
+
+-- | Run the extra -s/--strict checks on a journal, in order of priority,
+-- returning the first error message if any of them fail.
+journalStrictChecks :: Journal -> Either String ()
+journalStrictChecks j = do
+  -- keep the order of checks here synced with Check.md and Hledger.Cli.Commands.Check.Check.
+  -- balanced is checked earlier, in journalFinalise
+  journalCheckCommodities j
+  journalCheckAccounts j
 
 -- | Check that all the journal's postings are to accounts  with
 -- account directives, returning an error message otherwise.
@@ -50,53 +63,67 @@ journalCheckAccounts j = mapM_ checkacct (journalPostings j)
            "%s:%d:"
           ,"%s"
           ,"Strict account checking is enabled, and"
-          ,"account %s has not been declared."
+          ,"account \"%s\" has not been declared."
           ,"Consider adding an account directive. Examples:"
           ,""
           ,"account %s"
-          ,"account %s    ; type:A  ; (L,E,R,X,C,V)"
-          ]) f l ex (show a) a a
+          ]) f l ex a a
         where
           (f,l,_mcols,ex) = makePostingAccountErrorExcerpt p
 
--- | Check that all the commodities used in this journal's postings have been declared
--- by commodity directives, returning an error message otherwise.
+-- | Check all balance assertions in the journal and return an error message if any of them fail.
+-- (Technically, this also tries to balance the journal and can return balancing failure errors;
+-- ensure the journal is already balanced (with journalBalanceTransactions) to avoid this.)
+journalCheckBalanceAssertions :: Journal -> Either String ()
+journalCheckBalanceAssertions = fmap (const ()) . journalBalanceTransactions defbalancingopts
+
+-- | Check that all the commodities used in this journal's postings and P directives
+-- have been declared by commodity directives, returning an error message otherwise.
 journalCheckCommodities :: Journal -> Either String ()
-journalCheckCommodities j = mapM_ checkcommodities (journalPostings j)
+journalCheckCommodities j = do
+  mapM_ checkPriceDirectiveCommodities $ jpricedirectives j
+  mapM_ checkPostingCommodities $ journalPostings j
   where
-    checkcommodities p =
-      case findundeclaredcomm p of
-        Nothing -> Right ()
-        Just (comm, _) ->
-          Left $ printf (unlines [
-           "%s:%d:"
-          ,"%s"
-          ,"Strict commodity checking is enabled, and"
-          ,"commodity %s has not been declared."
-          ,"Consider adding a commodity directive. Examples:"
-          ,""
-          ,"commodity %s1000.00"
-          ,"commodity 1.000,00 %s"
-          ]) f l ex (show comm) comm comm
+    firstUndeclaredOf comms = find (`M.notMember` jdeclaredcommodities j) comms
+
+    errmsg = unlines [
+        "%s:%d:"
+      ,"%s"
+      ,"Strict commodity checking is enabled, and"
+      ,"commodity %s has not been declared."
+      ,"Consider adding a commodity directive. Examples:"
+      ,""
+      ,"commodity %s1000.00"
+      ,"commodity 1.000,00 %s"
+      ]
+
+    checkPriceDirectiveCommodities pd@PriceDirective{pdcommodity=c, pdamount=amt} =
+      case firstUndeclaredOf [c, acommodity amt] of
+        Nothing   -> Right ()
+        Just comm -> Left $ printf errmsg f l ex (show comm) comm comm
+          where (f,l,_mcols,ex) = makePriceDirectiveErrorExcerpt pd Nothing
+
+    checkPostingCommodities p =
+      case firstundeclaredcomm p of
+        Nothing                    -> Right ()
+        Just (comm, _inpostingamt) -> Left $ printf errmsg f l ex (show comm) comm comm
           where
             (f,l,_mcols,ex) = makePostingErrorExcerpt p finderrcols
       where
-        -- Find the first undeclared commodity symbol in this posting's amount
-        -- or balance assertion amount, if any. The boolean will be true if
-        -- the undeclared symbol was in the posting amount.
-        findundeclaredcomm :: Posting -> Maybe (CommoditySymbol, Bool)
-        findundeclaredcomm Posting{pamount=amt,pbalanceassertion} =
-          case (findundeclared postingcomms, findundeclared assertioncomms) of
+        -- Find the first undeclared commodity symbol in this posting's amount or balance assertion amount, if any.
+        -- and whether it was in the posting amount.
+        -- XXX The latter is currently unused, could be used to refine the error highlighting ?
+        firstundeclaredcomm :: Posting -> Maybe (CommoditySymbol, Bool)
+        firstundeclaredcomm Posting{pamount=amt,pbalanceassertion} =
+          case (firstUndeclaredOf postingcomms, firstUndeclaredOf assertioncomms) of
             (Just c, _) -> Just (c, True)
             (_, Just c) -> Just (c, False)
             _           -> Nothing
           where
+            assertioncomms = [acommodity a | Just a <- [baamount <$> pbalanceassertion]]
             postingcomms = map acommodity $ filter (not . isIgnorable) $ amountsRaw amt
               where
-                -- Ignore missing amounts and zero amounts without commodity (#1767)
-                isIgnorable a = (T.null (acommodity a) && amountIsZero a) || a == missingamt
-            assertioncomms = [acommodity a | Just a <- [baamount <$> pbalanceassertion]]
-            findundeclared = find (`M.notMember` jcommodities j)
+                isIgnorable a = a==missingamt || (amountIsZero a && T.null (acommodity a))  -- #1767
 
         -- Calculate columns suitable for highlighting the excerpt.
         -- We won't show these in the main error line as they aren't
@@ -185,7 +212,7 @@ journalCheckTags j = do
                     -- where
                     --   col  = T.length (showTransactionLineFirstPart txn') + 2
                     --   col2 = col + T.length tagname - 1
-    declaredtags = journalTagsDeclared j
+    declaredtags = journalTagsDeclared j ++ builtinTags
     msg = (unlines [
       "%s:%d:"
       ,"%s"
@@ -196,110 +223,103 @@ journalCheckTags j = do
       ,"tag %s"
       ])
 
+-- | Tag names which have special significance to hledger, and need not be declared for `hledger check tags`.
+-- Keep synced with check-tags.test and hledger manual > Special tags.
+builtinTags = [
+   "date"                   -- overrides a posting's date
+  ,"date2"                  -- overrides a posting's secondary date
+  ,"type"                   -- declares an account's type
+  ,"t"                      -- appears on postings generated by timedot letters
+  ,"assert"                 -- appears on txns generated by close --assert
+  ,"retain"                 -- appears on txns generated by close --retain
+  ,"start"                  -- appears on txns generated by close --migrate/--close/--open/--assign
+  ]
+  -- these tags are used in both hidden and visible form
+  <> ts <> map toVisibleTagName ts
+  where
+    ts = [
+       generatedTransactionTagName -- marks txns generated by periodic rule
+      ,modifiedTransactionTagName  -- marks txns which have had auto postings added
+      ,generatedPostingTagName     -- marks postings which have been generated
+      ,costPostingTagName          -- marks equity conversion postings which have been matched with a nearby costful posting
+      ,conversionPostingTagName    -- marks costful postings which have been matched with a nearby pair of equity conversion postings
+      ]
+
 -- | In each tranaction, check that any conversion postings occur in adjacent pairs.
 journalCheckPairedConversionPostings :: Journal -> Either String ()
 journalCheckPairedConversionPostings j =
-  mapM_ (transactionCheckPairedConversionPostings (jaccounttypes j)) $ jtxns j
+  mapM_ (transactionCheckPairedConversionPostings conversionaccts) $ jtxns j
+  where conversionaccts = journalConversionAccounts j
 
-transactionCheckPairedConversionPostings :: M.Map AccountName AccountType -> Transaction -> Either String ()
-transactionCheckPairedConversionPostings accttypes t =
-  case partitionAndCheckConversionPostings True accttypes (zip [0..] $ tpostings t) of
+transactionCheckPairedConversionPostings :: [AccountName] -> Transaction -> Either String ()
+transactionCheckPairedConversionPostings conversionaccts t =
+  case partitionAndCheckConversionPostings True conversionaccts (zip [0..] $ tpostings t) of
     Left err -> Left $ T.unpack err
     Right _  -> Right ()
 
 ----------
 
--- | Information useful for checking the age and lag of an account's latest balance assertion.
-data BalanceAssertionInfo = BAI {
-    baiAccount                :: AccountName -- ^ the account
-  , baiLatestAssertionPosting :: Posting     -- ^ the account's latest posting with a balance assertion
-  , baiLatestAssertionDate    :: Day         -- ^ the posting date
-  , baiLatestAssertionStatus  :: Status      -- ^ the posting status
-  , baiLatestPostingDate      :: Day         -- ^ the date of this account's latest posting with or without a balance assertion
-}
-
--- | Given a list of postings to the same account,
--- if any of them contain a balance assertion,
--- calculate the last asserted and posted dates.
-balanceAssertionInfo :: [Posting] -> Maybe BalanceAssertionInfo
-balanceAssertionInfo ps =
-  case (mlatestp, mlatestassertp) of
-    (Just latestp, Just latestassertp) -> Just $
-      BAI{baiAccount                 = paccount latestassertp
-          ,baiLatestAssertionDate    = postingDate latestassertp
-          ,baiLatestAssertionPosting = latestassertp
-          ,baiLatestAssertionStatus  = postingStatus latestassertp
-          ,baiLatestPostingDate      = postingDate latestp
-          }
-    _ -> Nothing
-  where
-    ps' = sortOn postingDate ps
-    mlatestp = lastMay ps'
-    mlatestassertp = lastMay [p | p@Posting{pbalanceassertion=Just _} <- ps']
-
 -- | The number of days allowed between an account's latest balance assertion 
--- and latest posting.
+-- and latest posting (7).
 maxlag = 7
 
--- | The number of days between this balance assertion and the latest posting in its account.
-baiLag BAI{..} = diffDays baiLatestPostingDate baiLatestAssertionDate
+-- | Check that accounts with balance assertions have no posting more
+-- than maxlag days after their latest balance assertion.
+journalCheckRecentAssertions :: Journal -> Either String ()
+journalCheckRecentAssertions j =
+  let acctps = groupOn paccount $ sortOn paccount $ journalPostings j
+  in case mapMaybe findRecentAssertionError acctps of
+    []         -> Right ()
+    firsterr:_ -> Left firsterr
 
--- -- | The earliest balance assertion date which would satisfy the recentassertions check.
--- baiLagOkDate :: BalanceAssertionInfo -> Day
--- baiLagOkDate BAI{..} = addDays (-7) baiLatestPostingDate
-
--- | Check that this latest assertion is close enough to the account's latest posting.
-checkRecentAssertion :: BalanceAssertionInfo -> Either (BalanceAssertionInfo, String) ()
-checkRecentAssertion bai@BAI{..}
-  | lag > maxlag =
-    Left (bai, printf (chomp $ unlines [
-       "the last balance assertion (%s) was %d days before"
-      ,"the latest posting (%s)."
+-- | Do the recentassertions check for one account: given a list of postings to the account,
+-- if any of them contain a balance assertion, identify the latest balance assertion,
+-- and if any postings are >maxlag days later than the assertion,
+-- return an error message identifying the first of them.
+-- Postings on the same date will be handled in parse order (hopefully).
+findRecentAssertionError :: [Posting] -> Maybe String
+findRecentAssertionError ps = do
+  let rps = sortOn (Data.Ord.Down . postingDate) ps
+  let (afterlatestassertrps, untillatestassertrps) = span (isNothing.pbalanceassertion) rps
+  latestassertdate <- postingDate <$> headMay untillatestassertrps
+  let withinlimit date = diffDays date latestassertdate <= maxlag
+  firsterrorp <- lastMay $ dropWhileEnd (withinlimit.postingDate) afterlatestassertrps
+  let lag = diffDays (postingDate firsterrorp) latestassertdate
+  let acct = paccount firsterrorp
+  let (f,l,_mcols,ex) = makePostingAccountErrorExcerpt firsterrorp
+  -- let comm =
+  --       case map acommodity $ amounts $ pamount firsterrorp of
+  --         [] -> ""
+  --         (t:_) | T.length t == 1 -> t
+  --         (t:_) -> t <> " "
+  Just $ chomp $ printf
+    (unlines [
+      "%s:%d:",
+      "%s\n",
+      -- "The recentassertions check is enabled, so accounts with balance assertions must",
+      -- "have a balance assertion within %d days of their latest posting.",
+      "The recentassertions check is enabled, so accounts with balance assertions",
+      "must have a recent one, not more than %d days older than their latest posting.",
+      "In account: %s",
+      "the last assertion was on %s, %d days before this latest posting.",
+      "Consider adding a new balance assertion to the above posting. Eg:",
+      "",
+      "%s = BALANCE"
       ])
-      (show baiLatestAssertionDate) lag (show baiLatestPostingDate)
-      )
-  | otherwise = Right ()
-  where 
-    lag = baiLag bai
-
--- | Check that all the journal's accounts with balance assertions have
--- an assertion no more than 7 days before their latest posting.
--- Today's date is provided for error messages.
-journalCheckRecentAssertions :: Day -> Journal -> Either String ()
-journalCheckRecentAssertions today j =
-  let
-    acctps = groupOn paccount $ sortOn paccount $ journalPostings j
-    acctassertioninfos = mapMaybe balanceAssertionInfo acctps
-  in
-    case mapM_ checkRecentAssertion acctassertioninfos of
-      Right () -> Right ()
-      Left (BAI{..}, msg) -> Left errmsg
+    f
+    l
+    (textChomp ex)
+    maxlag
+    (bold' $ T.unpack acct)
+    (showDate latestassertdate)
+    lag
+    (showposting firsterrorp)
+    where
+      showposting p =
+        headDef "" $ first3 $ postingAsLines False True acctw amtw p{pcomment=""}
         where
-          errmsg = chomp $ printf 
-            (unlines [
-              "%s:",
-              "%s\n",
-              "The recentassertions check is enabled, so accounts with balance assertions must",
-              "have a balance assertion no more than %d days before their latest posting date.",
-              "In account %s,",
-              "%s",
-              "",
-              "%s"
-              ])
-            (maybe "(no position)"  -- shouldn't happen
-              (sourcePosPretty . baposition) $ pbalanceassertion baiLatestAssertionPosting)
-            (textChomp excerpt)
-            maxlag
-            baiAccount
-            msg
-            recommendation
-            where
-              (_,_,_,excerpt) = makeBalanceAssertionErrorExcerpt baiLatestAssertionPosting
-              recommendation = unlines [
-                "Consider adding a more recent balance assertion for this account. Eg:",
-                "",
-                printf "%s *\n    %s    $0 = $0  ; <- adjust" (show today) baiAccount
-                ]
+          acctw = T.length $ paccount p
+          amtw  = length $ showMixedAmountWith oneLineFmt $ pamount p
 
 -- -- | Print the last balance assertion date & status of all accounts with balance assertions.
 -- printAccountLastAssertions :: Day -> [BalanceAssertionInfo] -> IO ()

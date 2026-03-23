@@ -11,7 +11,7 @@ module Hledger.Web.Handler.AddR
   ) where
 
 import Data.Aeson.Types (Result(..))
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Network.HTTP.Types.Status (status400)
 import Text.Blaze.Html (preEscapedToHtml)
 import Yesod
@@ -30,8 +30,8 @@ getAddR = do
 postAddR :: Handler ()
 postAddR = do
   checkServerSideUiEnabled
-  VD{caps, j, today} <- getViewData
-  when (CapAdd `notElem` caps) (permissionDenied "Missing the 'add' capability")
+  VD{j, today} <- getViewData
+  require AddPermission
 
   ((res, view), enctype) <- runFormPost $ addForm j today
   case res of
@@ -59,8 +59,8 @@ postAddR = do
 -- The web form handler above should probably use PUT as well.
 putAddR :: Handler RepJson
 putAddR = do
-  VD{caps, j, opts} <- getViewData
-  when (CapAdd `notElem` caps) (permissionDenied "Missing the 'add' capability")
+  VD{j, opts} <- getViewData
+  require AddPermission
 
   (r :: Result Transaction) <- parseCheckJsonBody
   case r of

@@ -11,7 +11,7 @@
 --
 -- You could make this a standalone script that runs from anywhere and
 -- recompiles itself when changed, by replacing "runghc" above with
--- "script --compile --resolver lts-16" (eg). However this uses the
+-- "script --compile --resolver lts-22" (eg). However this uses the
 -- hledger version from that stackage resolver, so in this case you
 -- should check out the corresponding release-tagged version of this
 -- script for compatibility (eg: git checkout 1.18.1).
@@ -111,18 +111,18 @@ import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Time.Calendar (toGregorian)
 import Data.Time.Calendar.OrdinalDate (mondayStartWeek, sundayStartWeek, toOrdinalDate)
 import Data.Text (Text, isPrefixOf, pack, unpack)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import qualified Hledger.Data as H
-import qualified Hledger.Query as H
-import qualified Hledger.Read as H
-import qualified Hledger.Utils.Parse as H
+import Data.Text qualified as T
+import Data.Text.IO qualified as T
+import Hledger.Data qualified as H
+import Hledger.Query qualified as H
+import Hledger.Read qualified as H
+import Hledger.Utils.Parse qualified as H
 import Lens.Micro (set)
 import Options.Applicative
 import System.Exit (exitFailure)
 import System.FilePath (FilePath)
-import qualified Text.Megaparsec as P
-import qualified Text.Megaparsec.Char as P
+import Text.Megaparsec qualified as P
+import Text.Megaparsec.Char qualified as P
 
 -- Don't know how to preserve newlines yet.
 helptxt = unlines [
@@ -225,7 +225,7 @@ checkAssertions balances0 asserts0 postingss
               -- Restrict to accounts mentioned in the predicate, and pretty-print balances
               balances' = filter (flip inAssertion p . fst) balances
               maxalen   = maximum $ map (T.length . fst) balances'
-              accounts = [ a <> padding <> T.pack (show m)
+              accounts = [ a <> padding <> T.pack (H.showMixedAmount m)
                          | (a,m) <- balances'
                          , let padding = T.replicate (2 + maxalen - T.length a) " "
                          ]

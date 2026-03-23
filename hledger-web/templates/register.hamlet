@@ -1,7 +1,7 @@
 <h2>
   #{header}
 
-<div .hidden-xs>
+<div>
   ^{registerChartHtml qparam balancelabel $ accountTransactionsReportByCommodity items}
 
 <div.table-responsive>
@@ -20,7 +20,7 @@
     <tbody>
       $forall (torig, tacct, split, _acct, amt, bal) <- items
         <tr ##{tindex torig} title="#{showTransaction torig}" style="vertical-align:top;">
-          <td .date>
+          <td .date nowrap>
             <a href="@?{(JournalR, [("q", T.unwords $ removeInacct qparam)])}##{transactionFrag torig}">
               #{show (tdate tacct)}
           <td>
@@ -35,5 +35,5 @@
           <td style="text-align:right;">
             ^{mixedAmountAsHtml bal}
 
-$if elem CapAdd caps
+$if elem AddPermission perms
   ^{addModal AddR j today}

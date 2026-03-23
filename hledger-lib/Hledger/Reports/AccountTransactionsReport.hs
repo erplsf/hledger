@@ -27,8 +27,7 @@ import Data.List (mapAccumR, nub, partition, sortBy)
 import Data.List.Extra (nubSort)
 import Data.Maybe (catMaybes)
 import Data.Ord (Down(..), comparing)
-import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time.Calendar (Day)
 
 import Hledger.Data
@@ -80,10 +79,14 @@ type AccountTransactionsReportItem =
    Transaction -- the transaction, unmodified
   ,Transaction -- the transaction, as seen from the current account
   ,Bool        -- is this a split (more than one posting to other accounts) ?
-  ,Text        -- a display string describing the other account(s), if any
+  ,[AccountName] -- the other account(s), if any
   ,MixedAmount -- the amount posted to the current account(s) (or total amount posted)
   ,MixedAmount -- the register's running total or the current account(s)'s historical balance, after this transaction
   )
+
+instance HasAmounts AccountTransactionsReportItem where
+  styleAmounts styles (torig,tacct,b,c,a1,a2) =
+    (styleAmounts styles torig,styleAmounts styles tacct,b,c,styleAmounts styles a1,styleAmounts styles a2)
 
 triOrigTransaction (torig,_,_,_,_,_) = torig
 triDate (_,tacct,_,_,_,_) = tdate tacct
@@ -120,17 +123,17 @@ accountTransactionsReport rspec@ReportSpec{_rsReportOpts=ropts} j thisacctq = it
         -- speed improvement by stripping them early. In some cases, such as in hledger-ui, we still
         -- want to keep prices around, so we can toggle between cost and no cost quickly. We can use
         -- the show_costs_ flag to be efficient when we can, and detailed when we have to.
-          (if show_costs_ ropts then id else journalMapPostingAmounts mixedAmountStripPrices)
-        . traceOrLogAtWith 5 (("ts3:\n"++).pshowTransactions.jtxns)
+          (if show_costs_ ropts then id else journalMapPostingAmounts mixedAmountStripCosts)
+        . dbg5With (("ts3:\n"++).pshowTransactions.jtxns)
         -- maybe convert these transactions to cost or value
         . journalApplyValuationFromOpts rspec
-        . traceOrLogAtWith 5 (("ts2:\n"++).pshowTransactions.jtxns)
-        -- apply any cur:SYM filters in reportq
+        . dbg5With (("ts2:\n"++).pshowTransactions.jtxns)
+        -- apply any cur: or amt: filters in reportq
         . (if queryIsNull amtq then id else filterJournalAmounts amtq)
         -- only consider transactions which match thisacctq (possibly excluding postings
         -- which are not real or have the wrong status)
-        . traceOrLogAt 3 ("thisacctq: "++show thisacctq)
-        $ traceOrLogAtWith 5 (("ts1:\n"++).pshowTransactions.jtxns)
+        . dbg3Msg ("thisacctq: "++show thisacctq)
+        $ dbg5With (("ts1:\n"++).pshowTransactions.jtxns)
           j{jtxns = filter (matchesTransaction thisacctq . relevantPostings) $ jtxns j}
       where
         relevantPostings
@@ -155,9 +158,10 @@ accountTransactionsReport rspec@ReportSpec{_rsReportOpts=ropts} j thisacctq = it
     items =
         accountTransactionsReportItems reportq thisacctq startbal maNegate (journalAccountType j)
       -- sort by the transaction's register date, then index, for accurate starting balance
-      . traceAtWith 5 (("ts4:\n"++).pshowTransactions.map snd)
+      . dbg5With (("ts4:\n"++).pshowTransactions.map snd)
       . sortBy (comparing (Down . fst) <> comparing (Down . tindex . snd))
       . map (\t -> (transactionRegisterDate wd reportq thisacctq t, t))
+      . map (if invert_ ropts then (\t -> t{tpostings = map postingNegateMainAmount $ tpostings t}) else id)
       $ jtxns acctJournal
 
 pshowTransactions :: [Transaction] -> String
@@ -183,14 +187,14 @@ accountTransactionsReportItem reportq thisacctq signfn accttypefn bal (d, t)
     -- 201407: I've lost my grip on this, let's just hope for the best
     -- 201606: we now calculate change and balance from filtered postings, check this still works well for all callers XXX
     | null reportps = (bal, Nothing)  -- no matched postings in this transaction, skip it
-    | otherwise     = (bal', Just (t, tacct{tdate=d}, numotheraccts > 1, otheracctstr, amt, bal'))
+    | otherwise     = (bal', Just (t, tacct{tdate=d}, numotheraccts > 1, otheraccts, amt, bal'))
     where
       tacct@Transaction{tpostings=reportps} = filterTransactionPostingsExtra accttypefn reportq t  -- TODO needs to consider --date2, #1731
       (thisacctps, otheracctps) = partition (matchesPosting thisacctq) reportps
       numotheraccts = length $ nub $ map paccount otheracctps
-      otheracctstr | thisacctq == None  = summarisePostingAccounts reportps     -- no current account ? summarise all matched postings
-                   | numotheraccts == 0 = summarisePostingAccounts thisacctps   -- only postings to current account ? summarise those
-                   | otherwise          = summarisePostingAccounts otheracctps  -- summarise matched postings to other account(s)
+      otheraccts | thisacctq == None  = summarisePostingAccounts reportps     -- no current account ? summarise all matched postings
+                 | numotheraccts == 0 = summarisePostingAccounts thisacctps   -- only postings to current account ? summarise those
+                 | otherwise          = summarisePostingAccounts otheracctps  -- summarise matched postings to other account(s)
       -- 202302: Impact of t on thisacct - normally the sum of thisacctps,
       -- but if they are null it probably means reportq is an account filter
       -- and we should sum otheracctps instead.
@@ -231,9 +235,8 @@ transactionRegisterDate wd reportq thisacctq t
 
 -- | Generate a simplified summary of some postings' accounts.
 -- To reduce noise, if there are both real and virtual postings, show only the real ones.
-summarisePostingAccounts :: [Posting] -> Text
-summarisePostingAccounts ps =
-    T.intercalate ", " . map accountSummarisedName . nub $ map paccount displayps
+summarisePostingAccounts :: [Posting] -> [AccountName]
+summarisePostingAccounts ps = map paccount displayps
   where
     realps = filter isReal ps
     displayps | null realps = ps

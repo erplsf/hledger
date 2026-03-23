@@ -31,8 +31,8 @@ getEditR f = do
 postEditR :: FilePath -> Handler ()
 postEditR f = do
   checkServerSideUiEnabled
-  VD {caps, j} <- getViewData
-  when (CapManage `notElem` caps) (permissionDenied "Missing the 'manage' capability")
+  VD {j} <- getViewData
+  require EditPermission
 
   (f', txt) <- journalFile404 f j
   ((res, view), enctype) <- runFormPost (editForm f' txt)

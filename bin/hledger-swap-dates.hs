@@ -9,16 +9,15 @@
 {-# LANGUAGE RecordWildCards #-}
 
 import Data.String.QQ (s)
-import qualified Data.Text.IO as T
+import Data.Text.IO qualified as T
 import Hledger
-import Hledger.Cli
+import Hledger.Cli.Script
 
 ------------------------------------------------------------------------------
 cmdmode = hledgerCommandMode
   [s| swap-dates
 Swap date and date2, on transactions which have date2 defined.
 (Does not yet swap posting dates.)
-_FLAGS
   |]
   [] 
   [generalflagsgroup1]
@@ -29,7 +28,7 @@ _FLAGS
 main :: IO ()
 main = do
   opts@CliOpts{reportspec_=rspec} <- getHledgerCliOpts cmdmode
-  withJournalDo opts $
+  withJournal opts $
    \j -> do
     d <- getCurrentDay
     let

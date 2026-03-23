@@ -11,7 +11,7 @@ module Hledger.Cli.Commands.Files (
  ,files
 ) where
 
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Safe (headMay)
 
 import Hledger
@@ -22,8 +22,8 @@ import Hledger.Cli.CliOptions
 filesmode = hledgerCommandMode
   $(embedFileRelative "Hledger/Cli/Commands/Files.txt")
   []
-  [generalflagsgroup2]
-  []
+  cligeneralflagsgroups2
+  hiddenflags
   ([], Just $ argsFlag "[REGEX]")
 
 -- | The files command.

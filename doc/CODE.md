@@ -1,14 +1,9 @@
 # Code
 
-<div class=pagetoc>
-
-<!-- toc -->
-</div>
-
 hledger is a suite of applications, tools and libraries.
 The main hledger code repository is [github.com/simonmichael/hledger](https://github.com/simonmichael/hledger)
 (shortcut url `code.hledger.org`).
-There are also various hledger addons maintained as separate projects with their own repos.
+There are also various hledger add-ons maintained as separate projects with their own repos.
 
 ## hledger packages
 
@@ -100,7 +95,7 @@ Try tracing the execution of a hledger command:
 1. [Hledger.Cli.Main:main](https://github.com/simonmichael/hledger/blob/master/hledger/Hledger/Cli/Main.hs#L302)
 parses the command line to select a command, then
 2. gives it to
-[Hledger.Cli.Utils:withJournalDo](https://github.com/simonmichael/hledger/blob/master/hledger/Hledger/Cli/Utils.hs#L73),
+[Hledger.Cli.Utils:withJournal](https://github.com/simonmichael/hledger/blob/master/hledger/Hledger/Cli/Utils.hs#L73),
 which runs it after doing all the initial parsing.
 3. Parsing code is under
 [hledger-lib:Hledger.Read](https://github.com/simonmichael/hledger/tree/master/hledger-lib/Hledger/Read.hs),
@@ -166,7 +161,7 @@ Here are some ways to run it during development:
 
 - `yesod devel`: runs in developer mode, rebuilds automatically when config, template, static or haskell files change
 (but only files in the hledger-web package):
-```shell
+```cli
 $ (cd hledger-web; yesod devel)
 ```
 
@@ -176,16 +171,16 @@ $ (cd hledger-web; yesod devel)
 - `stack ghci`: runs the server in developer mode from GHCI.
 Changes to static files like hledger.js will be visible on page reload;
 to see other changes, restart it as shown.
-```shell
+```cli
 $ (cd hledger-web; stack ghci hledger-web)
 hledger-web> :main --serve   # restart: ctrl-c, :r, enter, ctrl-p, ctrl-p, enter
 ```
 
-- `make ghci-web`: runs the server in developer mode from GHCI, also
+- `just ghci-web`: runs the server in developer mode from GHCI, also
 interprets the hledger-lib and hledger packages so that :reload picks
 up changes in those packages too:
-```shell
-$ make ghci-web
+```cli
+$ just ghci-web
 ghci> :main --serve
 ```
 (This rule also creates symbolic links to hledger-web's `config`, `messages`, `static` and `templates`
@@ -195,12 +190,12 @@ directories, needed in developer mode, so it can run from the top directory. Thi
 
 Relevant tools include:
 
-- unit tests (HUnit, make unittest)
-- functional tests (shelltestrunner, make functest)
-- performance tests (simplebench, make bench)
-- documentation tests (make haddocktest + manual)
+- unit tests
+- functional tests
+- performance tests
+- documentation tests
 - ui tests (manual)
-- installation tests (manual)
+- installation tests
 - code reviews
 
 ## Code review
@@ -214,3 +209,51 @@ Relevant tools include:
   [log](https://ircbrowse.net/day/hledger/2015/10/11) -->
 
 
+## Code docs
+
+Haddock comments are the standard way of attaching docs (and sometimes small tests)
+to a haskell definition. They are used pervasively in the hledger codebase.
+
+From [#2222](https://github.com/simonmichael/hledger/pull/2222):
+
+I tend to add a line of english description to most things.
+They can be a big help to someone else debugging/improving code later.
+
+> *I use Haddock but I do not like to tell obvious things in Haddock comments.
+> (And if there are surprising things I try to eliminate the surprises instead.)*
+
+I hear you! This is of course a recurring debate among programmers.
+
+I agree that obviously redundant haddocks that add no value are to be avoided.
+
+In the hledger codebase, there's no hard requirement for haddocks.
+And sometimes the bar can be lower, eg in single-purpose less-frequently-developed modules like FODS.hs.
+
+But I believe it's always worth at least considering them when adding code, and it's something I consider when reviewing code.
+I'll give some reasons why I think so, for the record (and maybe they'll persuade you just a little).
+
+Haddocks help guide and anchor the developer while writing or changing code.
+They are the cheapest kind of doc, spec and test suite.
+They also create a place to add actual doctests, now or later.
+
+Haddocks can be helpful to contributors who are not expert haskellers, which happens quite often in the hledger project.
+The human language descriptions can complement the code, reducing cognitive effort and helping with mental chunking.
+I think people find the hledger's code, with its pervasive haddocks, above average in readability.
+(And I think we've had more successful contributions as a result.)
+
+Haddocks can also help experienced developers move faster.
+Code which seems quite clear and obvious when you are writing it is often less obvious to oneself a few weeks or years later.
+And certainly it can be less obvious to others than we might think.
+When debugging or coding we are often mentally stretched and we would prefer to conserve brainpower for the main task.
+
+In my experience debugging/writing/changing hledger code,
+
+- Number of times I've regretted seeing a haddock comment attached to some code: almost zero.
+- Effort to remove an excessive haddock: almost zero.
+- Number of times I've been trying to understand some contributed code and haddocks would have saved my time: quite a few.
+- Number of times I've appreciated code haddocks and found them helpful: many.
+- Number of times I've found errors or staleness in haddocks: not often.
+- Effort to fix wrong haddocks, or to write new ones: usually very low. And if it's high, it's usually very worthwhile because it alerts me to a confusion in the code or clarifies my thinking.
+
+hledger is a documentation-driven project, with docs in general being a top priority.
+I think this is one reason it has held together and kept improving over a long period.

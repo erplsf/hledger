@@ -39,12 +39,14 @@ module Hledger.UI.UIScreens
 )
 where
 
-import Brick.Widgets.List (listMoveTo, listSelectedElement, list)
+import Brick.Widgets.List (listMoveTo, listSelectedElement, list, listSelectedL, GenericList)
 import Data.List
 import Data.Maybe
+import Data.Text qualified as T
 import Data.Time.Calendar (Day, diffDays)
+import Lens.Micro (over)
 import Safe
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 
 import Hledger.Cli hiding (mode, progname,prognameandversion)
 import Hledger.UI.UIOptions
@@ -140,11 +142,11 @@ asUpdateHelper rspec0 d copts roptsModify extraquery j ass = dbgui "asUpdateHelp
       updateReportSpec
         ropts
         rspec0{_rsDay=d}  -- update to the current date, might have changed since program start
-      & either (error "asUpdateHelper: adjusting the query, should not have failed") id -- PARTIAL:
+      & either (error' "asUpdateHelper: adjusting the query, should not have failed") id -- PARTIAL:
       & reportSpecSetFutureAndForecast (forecast_ $ inputopts_ copts)  -- include/exclude future & forecast transactions
       & reportSpecAddQuery extraquery  -- add any extra restrictions
 
-    l = listMoveTo selidx $ list AccountsList (V.fromList $ displayitems ++ blankitems) 1
+    l = listMoveToIfDisplayItems selidx displayitems $ list AccountsList (V.fromList $ displayitems ++ blankitems) 1
       where
         -- which account should be selected ?
         selidx = headDef 0 $ catMaybes [
@@ -159,7 +161,9 @@ asUpdateHelper rspec0 d copts roptsModify extraquery j ass = dbgui "asUpdateHelp
         displayitems = map displayitem items
           where
             -- run the report
-            (items, _) = balanceReport rspec j
+            (items, _) = styleAmounts styles $ balanceReport rspec j
+              where
+                styles = journalCommodityStylesWith HardRounding j
 
             -- pre-render a list item
             displayitem (fullacct, shortacct, indent, bal) =
@@ -254,7 +258,7 @@ rsUpdate uopts d j rss@RSS{_rssAccount, _rssForceInclusive, _rssList=oldlist} =
     -- adjust the report options and report spec, carefully as usual to avoid screwups (#1523)
     ropts' = ropts {
         -- ignore any depth limit, as in postingsReport; allows register's total to match accounts screen
-        depth_=Nothing
+        depth_=mempty
         -- do not strip prices so we can toggle costs within the ui
       , show_costs_=True
       -- XXX aregister also has this, needed ?
@@ -263,11 +267,13 @@ rsUpdate uopts d j rss@RSS{_rssAccount, _rssForceInclusive, _rssList=oldlist} =
       }
     rspec' =
       updateReportSpec ropts' rspec{_rsDay=d}
-      & either (error "rsUpdate: adjusting the query for register, should not have failed") id -- PARTIAL:
+      & either (error' "rsUpdate: adjusting the query for register, should not have failed") id -- PARTIAL:
       & reportSpecSetFutureAndForecast (forecast_ $ inputopts_ copts)
 
     -- gather transactions to display
-    items = accountTransactionsReport rspec' j thisacctq
+    items = styleAmounts styles $ accountTransactionsReport rspec' j thisacctq
+              where
+                styles = journalCommodityStylesWith HardRounding j
     items' =
       (if empty_ ropts then id else filter (not . mixedAmountLooksZero . fifth6)) $  -- without --empty, exclude no-change txns
       reverse  -- most recent last
@@ -276,18 +282,18 @@ rsUpdate uopts d j rss@RSS{_rssAccount, _rssForceInclusive, _rssList=oldlist} =
     -- pre-render the list items, helps calculate column widths
     displayitems = map displayitem items'
       where
-        displayitem (t, _, _issplit, otheracctsstr, change, bal) =
+        displayitem (t, _, _issplit, otheraccts, change, bal) =
           RegisterScreenItem{rsItemDate          = showDate $ transactionRegisterDate wd (_rsQuery rspec') thisacctq t
                             ,rsItemStatus        = tstatus t
                             ,rsItemDescription   = tdescription t
-                            ,rsItemOtherAccounts = otheracctsstr
+                            ,rsItemOtherAccounts = T.intercalate ", " . map accountSummarisedName $ nub otheraccts
                                                     -- _   -> "<split>"  -- should do this if accounts field width < 30
                             ,rsItemChangeAmount  = showamt change
                             ,rsItemBalanceAmount = showamt bal
                             ,rsItemTransaction   = t
                             }
             where
-              showamt = showMixedAmountB oneLine{displayMaxWidth=Just 3}
+              showamt = showMixedAmountB oneLineNoCostFmt{displayMaxWidth=Just 3}
               wd = whichDate ropts'
 
     -- blank items are added to allow more control of scroll position; we won't allow movement over these.
@@ -311,7 +317,7 @@ rsUpdate uopts d j rss@RSS{_rssAccount, _rssForceInclusive, _rssList=oldlist} =
     -- otherwise, the transaction nearest in date to it;
     -- or if there's several with the same date, the nearest in journal order;
     -- otherwise, the last (latest) transaction.
-    l' = listMoveTo newselidx l
+    l' = listMoveToIfDisplayItems newselidx displayitems l
       where
         endidx = max 0 $ length displayitems - 1
         newselidx =
@@ -359,3 +365,10 @@ tsNew acct nts nt =
 tsUpdate :: TransactionScreenState -> TransactionScreenState
 tsUpdate = dbgui "tsUpdate"
 
+-- | Set selected index of a list if there are displayitems.
+-- If there are no displayitems, remove the selected index of the list.
+listMoveToIfDisplayItems :: Int -> [item] -> GenericList Name V.Vector item -> GenericList Name V.Vector item
+listMoveToIfDisplayItems idx displayItems =
+    if null displayItems
+        then over listSelectedL $ const Nothing
+        else listMoveTo idx

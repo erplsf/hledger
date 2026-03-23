@@ -4,9 +4,24 @@
 [![on hackage](https://img.shields.io/hackage/v/hledger.svg?label=hackage&colorB=green)](https://hackage.haskell.org/package/hledger)
 [![](https://repology.org/badge/version-for-repo/stackage_nighly/hledger.svg)](https://repology.org/metapackage/hledger)
 [![](https://repology.org/badge/version-for-repo/stackage_lts/hledger.svg)](https://repology.org/metapackage/hledger)
-[![github issues](https://img.shields.io/github/issues/simonmichael/hledger.svg)](http://bugs.hledger.org)
+\
+[![Repo Health](https://api.gitscope.dev/api/badges/simonmichael/hledger/health.svg "Overall repository health score from 0-100%. Calculated from activity, maintenance, community engagement, and issue management.")](https://gitscope.dev/docs/badges)
+[![Maintained](https://api.gitscope.dev/api/badges/simonmichael/hledger/maintained.svg "Maintenance status: very active, active, maintained, or stale based on recent commit and issue activity.")](https://gitscope.dev/docs/badges)
+[![Response Time](https://api.gitscope.dev/api/badges/simonmichael/hledger/response-time.svg "Average time maintainers take to respond to new issues.")](https://gitscope.dev/docs/badges)
+[![Contributors](https://api.gitscope.dev/api/badges/simonmichael/hledger/contributors.svg "Total number of unique contributors to the repository. The true number as of 2025 is 185+.")](https://hledger.org/CREDITS.html)
+\
+[![Documentation](https://api.gitscope.dev/api/badges/simonmichael/hledger/docs.svg "Documentation quality indicator based on README completeness, wiki presence, and linked documentation.")](https://hledger.org/doc.html)
+[![Open issues, all kinds](https://img.shields.io/github/issues/simonmichael/hledger.svg "Open issues, all kinds.")](https://github.com/simonmichael/hledger/issues?q=is:issue+state:open)
+[![Open bugs](https://api.gitscope.dev/api/badges/simonmichael/hledger/label/A-BUG.svg "Open bugs")](https://github.com/simonmichael/hledger/issues?q=is:issue+label:A-BUG+state:open) 
+[![Open wishes](https://api.gitscope.dev/api/badges/simonmichael/hledger/label/A-WISH.svg "Open wishes")](https://github.com/simonmichael/hledger/issues?q=is:issue+label:A-WISH+state:open)
+[![Issues Resolved](https://api.gitscope.dev/api/badges/simonmichael/hledger/resolved.svg "Percentage of issues resolved/closed during last N days. Higher is better. Click to see closed bugs.")](https://github.com/simonmichael/hledger/issues?q=is:issue+state:closed)
 
-Welcome! This a brief intro to hledger. For a more detailed version, see the home page: **<https://hledger.org>**
+<!--
+[![Contributor Friendly](https://api.gitscope.dev/api/badges/simonmichael/hledger/contributor-friendly.svg "Does the project welcome new contributors based on good first issues, contributing guides, and response patterns.")](https://hledger.org/CONTRIBUTING.html)
+[![Issues Welcome](https://api.gitscope.dev/api/badges/simonmichael/hledger/issues.svg "Does the project actively accept and respond to issue reports.")](https://hledger.org/ISSUES.html)
+-->
+
+Welcome! This is a brief intro to hledger. For a more detailed version, see the home page: **<https://hledger.org>**
 
 hledger is lightweight, cross platform, multi-currency, double-entry accounting software.
 It lets you track money, investments, cryptocurrencies, invoices, time, inventory and more, 
@@ -34,7 +49,7 @@ More features:
 - Inspired by and partly compatible with Ledger CLI; interconvertible with Beancount
 - Scriptable by CLI, HTTP or API, with plenty of examples
 - Clean Haskell codebase, continually improved since 2007, with $100 regression bounties
-- Free software licensed under GPLv3+.
+- Free software licensed under GNU General Public License v3.0 or later.
 
 ## Examples
 
@@ -113,7 +128,7 @@ More examples and screenshots: <https://hledger.org/#how-to-get-started>
 
 hledger is brought to you by
 [Simon Michael](http://joyful.com),
-[140+ contributors](CREDITS.md),
+[140+ contributors](doc/CREDITS.md),
 and the generous financial sponsors below.
 
 After enjoying some personal or organisational success with hledger,
@@ -144,6 +159,17 @@ It's easy! Please see <https://hledger.org/sponsor.html> for details.
 <a href="https://opencollective.com/hledger/organization/17/website"><img src="https://opencollective.com/hledger/organization/17/avatar.svg?avatarHeight=200"></a>
 <a href="https://opencollective.com/hledger/organization/18/website"><img src="https://opencollective.com/hledger/organization/18/avatar.svg?avatarHeight=200"></a>
 <a href="https://opencollective.com/hledger/organization/19/website"><img src="https://opencollective.com/hledger/organization/19/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/20/website"><img src="https://opencollective.com/hledger/organization/20/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/21/website"><img src="https://opencollective.com/hledger/organization/21/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/22/website"><img src="https://opencollective.com/hledger/organization/22/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/23/website"><img src="https://opencollective.com/hledger/organization/23/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/24/website"><img src="https://opencollective.com/hledger/organization/24/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/25/website"><img src="https://opencollective.com/hledger/organization/25/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/26/website"><img src="https://opencollective.com/hledger/organization/26/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/27/website"><img src="https://opencollective.com/hledger/organization/27/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/28/website"><img src="https://opencollective.com/hledger/organization/28/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/29/website"><img src="https://opencollective.com/hledger/organization/29/avatar.svg?avatarHeight=200"></a>
+<a href="https://opencollective.com/hledger/organization/30/website"><img src="https://opencollective.com/hledger/organization/30/avatar.svg?avatarHeight=200"></a>
 
 ### Individual sponsors
 
@@ -187,5 +213,16 @@ It's easy! Please see <https://hledger.org/sponsor.html> for details.
 <a href="https://opencollective.com/hledger/individual/37/website"><img src="https://opencollective.com/hledger/individual/37/avatar.svg?avatarHeight=100"></a>
 <a href="https://opencollective.com/hledger/individual/38/website"><img src="https://opencollective.com/hledger/individual/38/avatar.svg?avatarHeight=100"></a>
 <a href="https://opencollective.com/hledger/individual/39/website"><img src="https://opencollective.com/hledger/individual/39/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/40/website"><img src="https://opencollective.com/hledger/individual/40/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/41/website"><img src="https://opencollective.com/hledger/individual/41/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/42/website"><img src="https://opencollective.com/hledger/individual/42/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/43/website"><img src="https://opencollective.com/hledger/individual/43/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/44/website"><img src="https://opencollective.com/hledger/individual/44/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/45/website"><img src="https://opencollective.com/hledger/individual/45/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/46/website"><img src="https://opencollective.com/hledger/individual/46/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/47/website"><img src="https://opencollective.com/hledger/individual/47/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/48/website"><img src="https://opencollective.com/hledger/individual/48/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/49/website"><img src="https://opencollective.com/hledger/individual/49/avatar.svg?avatarHeight=100"></a>
+<a href="https://opencollective.com/hledger/individual/50/website"><img src="https://opencollective.com/hledger/individual/50/avatar.svg?avatarHeight=100"></a>
 
-If your logo/avatar needs to be added, [let me know](mailto:webmaster@hledger.org)!
+<!-- (If your logo/avatar isn't appearing here, eg because you didn't use Open Collective, please [let me know](mailto:webmaster@hledger.org).) -->

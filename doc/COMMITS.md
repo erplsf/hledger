@@ -1,10 +1,5 @@
 # COMMITS
 
-<div class=pagetoc>
-
-<!-- toc -->
-</div>
-
 In the hledger project we try to follow certain conventions for commit messages,
 because good messages lead to good commits => good change docs => 
 easier code review => quicker merging => faster delivery of quality software.
@@ -20,7 +15,7 @@ Here's the typical format: <!-- keep synced with tools/commitlint -->
 More precisely:
 
 - Commit messages must begin with one or more prefixes (colon-terminated words),
-  indicating the type and/or [topic](ISSUES.html#topics).
+  indicating the type and/or [topic](ISSUES.md#topics).
 - Commits causing user-visible changes must begin with `feat:`, `imp:` or `fix:` 
   (feature, improvement, or bugfix). These will be used in release notes.
   If they are breaking/incompatible changes, use `feat!:`, `imp!:` or `fix!:`.
@@ -51,13 +46,13 @@ Some possible prefixes:
 - `doc` - documentation-related
 - `test` - tests-related
 - `ci`  - continuous integration-related
-- Any of the standard [labels](ISSUES.html#labels) used in the issue tracker.
+- Any of the standard [labels](ISSUES.md#labels) used in the issue tracker.
 
 ## How to check commits
 
 Before committing, pushing, or merging, run `tools/commitlint` to check recent commit messages.
 (See the script for more ways to select commits.) You can configure your local working copy
-to do this automatically, by running `make installcommithook`.
+to do this automatically, by running `just installcommithook`.
 
 commitlint also runs automatically on Github to check pull requests.
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# push [INTERVALSECS] - push to github CI branch, watch for a successful run, then push to master
+# push [INTERVALSECS] - push master to github CI branch, watch for a successful run, then push to github master
 
 set -e
 
 INTERVAL="${1:-10}"
 
 LOCALBRANCH=master
-REMOTE=github
-REMOTECIBRANCH=simon
+REMOTE=origin
+REMOTECIBRANCH=ci
 REMOTEMAINBRANCH=master
 NUMRUNS=3
 NUMCOMMITS=5
@@ -35,6 +35,9 @@ ciwait() {
     echo "waiting for master to notice CI success..."
     sleep $MAINPUSHDELAY
 }
+
+# ensure git's output paging doesn't stop progress
+export PAGER=cat
 
 echo "latest local commits are:"
 gitlog

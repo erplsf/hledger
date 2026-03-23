@@ -17,9 +17,9 @@ import Brick.Widgets.List
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Data.Maybe
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Time.Calendar (Day)
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 import Data.Vector ((!?))
 import Graphics.Vty (Event(..),Key(..),Modifier(..), Button (BLeft, BScrollDown, BScrollUp))
 import Lens.Micro.Platform
@@ -33,13 +33,14 @@ import Hledger.UI.UITypes
 import Hledger.UI.UIState
 import Hledger.UI.UIUtils
 import Hledger.UI.UIScreens
-import Hledger.UI.ErrorScreen (uiReloadJournal, uiCheckBalanceAssertions, uiReloadJournalIfChanged)
+import Hledger.UI.ErrorScreen (uiReload, uiReloadIfFileChanged, uiToggleBalanceAssertions)
 import Hledger.UI.Editor (runIadd, runEditor, endPosition)
 import Brick.Widgets.Edit (getEditContents, handleEditorEvent)
+import Control.Arrow ((>>>))
 
 
 msDraw :: UIState -> [Widget Name]
-msDraw UIState{aopts=_uopts@UIOpts{uoCliOpts=copts@CliOpts{reportspec_=_rspec}}
+msDraw UIState{aopts=_uopts@UIOpts{uoCliOpts=copts@CliOpts{reportspec_=_rspec@ReportSpec{_rsReportOpts=ropts}}}
               ,ajournal=j
               ,aScreen=MS sst
               ,aMode=mode
@@ -53,6 +54,7 @@ msDraw UIState{aopts=_uopts@UIOpts{uoCliOpts=copts@CliOpts{reportspec_=_rspec}}
       where
         toplabel =
               withAttr (attrName "border" <> attrName "filename") files
+          <+> borderPeriodStr "" (period_ ropts)
           <+> (if ignore_assertions_ . balancingopts_ $ inputopts_ copts
                then withAttr (attrName "border" <> attrName "query") (str " ignoring balance assertions")
                else str "")
@@ -85,7 +87,7 @@ msDraw UIState{aopts=_uopts@UIOpts{uoCliOpts=copts@CliOpts{reportspec_=_rspec}}
               ,("q", str "quit")
               ]
 
-msDraw _ =  dbgui "msDraw" $ errorWrongScreenType "draw function"  -- PARTIAL:
+msDraw _ =  dbgui "msDraw" $ errorWrongScreenType "msDraw"  -- PARTIAL:
 
 -- msDrawItem :: (Int,Int) -> Bool -> MenuScreenItem -> Widget Name
 -- msDrawItem (_acctwidth, _balwidth) _selected MenuScreenItem{..} =
@@ -113,6 +115,7 @@ msHandle ev = do
                     Nothing -> Nothing
         nonblanks = V.takeWhile (not . T.null . msItemScreenName) $ listElements $ _mssList sst
         lastnonblankidx = max 0 (length nonblanks - 1)
+        journalspan = journalDateSpan False j
       d <- liftIO getCurrentDay
 
       case mode of
@@ -152,12 +155,11 @@ msHandle ev = do
               put' $ regenerateScreens j d $ setReportPeriod (DayPeriod d) ui
               where
                 p = reportPeriod ui
-            e | e `elem` [VtyEvent (EvKey (KChar 'g') []), AppEvent FileChange] ->
-              liftIO (uiReloadJournal copts d ui) >>= put'
-            VtyEvent (EvKey (KChar 'I') []) -> put' $ uiCheckBalanceAssertions d (toggleIgnoreBalanceAssertions ui)
-            VtyEvent (EvKey (KChar 'a') []) -> suspendAndResume $ clearScreen >> setCursorPosition 0 0 >> add copts j >> uiReloadJournalIfChanged copts d j ui
-            VtyEvent (EvKey (KChar 'A') []) -> suspendAndResume $ void (runIadd (journalFilePath j)) >> uiReloadJournalIfChanged copts d j ui
-            VtyEvent (EvKey (KChar 'E') []) -> suspendAndResume $ void (runEditor endPosition (journalFilePath j)) >> uiReloadJournalIfChanged copts d j ui
+            e | e `elem` [VtyEvent (EvKey (KChar 'g') []), AppEvent FileChange] -> uiReload copts d ui >>= put'
+            VtyEvent (EvKey (KChar 'I') []) -> uiToggleBalanceAssertions d ui
+            VtyEvent (EvKey (KChar 'a') []) -> suspendAndResume $ clearScreen >> setCursorPosition 0 0 >> add (cliOptsDropArgs copts) j >> uiReloadIfFileChanged copts d j ui
+            VtyEvent (EvKey (KChar 'A') []) -> suspendAndResume $ void (runIadd (journalFilePath j)) >> uiReloadIfFileChanged copts d j ui
+            VtyEvent (EvKey (KChar 'E') []) -> suspendAndResume $ void (runEditor endPosition (journalFilePath j)) >> uiReloadIfFileChanged copts d j ui
 
 --             VtyEvent (EvKey (KChar 'B') []) -> put' $ regenerateScreens j d $ toggleConversionOp ui
 --             VtyEvent (EvKey (KChar 'V') []) -> put' $ regenerateScreens j d $ toggleValue ui
@@ -177,7 +179,6 @@ msHandle ev = do
 --             VtyEvent (EvKey (KChar 'T') []) -> put' $ regenerateScreens j d $ setReportPeriod (DayPeriod d) ui
 
 --             -- display mode/query toggles
---             VtyEvent (EvKey (KChar 'H') []) -> modify' (regenerateScreens j d . toggleHistorical) >> msCenterAndContinue
 --             VtyEvent (EvKey (KChar 't') []) -> modify' (regenerateScreens j d . toggleTree) >> msCenterAndContinue
 --             VtyEvent (EvKey (KChar c) []) | c `elem` ['z','Z'] -> modify' (regenerateScreens j d . toggleEmpty) >> msCenterAndContinue
 --             VtyEvent (EvKey (KChar 'R') []) -> modify' (regenerateScreens j d . toggleReal) >> msCenterAndContinue
@@ -185,11 +186,15 @@ msHandle ev = do
 --             VtyEvent (EvKey (KChar 'P') []) -> modify' (regenerateScreens j d . togglePending) >> msCenterAndContinue
 --             VtyEvent (EvKey (KChar 'C') []) -> modify' (regenerateScreens j d . toggleCleared) >> msCenterAndContinue
 --             VtyEvent (EvKey (KChar 'F') []) -> modify' (regenerateScreens j d . toggleForecast d)
+            -- VtyEvent (EvKey (KChar 'H') []) -> modify' (toggleHistorical >>> regenerateScreens j d)
 
-            -- VtyEvent (EvKey (KDown)     [MShift]) -> put' $ regenerateScreens j d $ shrinkReportPeriod d ui
-            -- VtyEvent (EvKey (KUp)       [MShift]) -> put' $ regenerateScreens j d $ growReportPeriod d ui
-            -- VtyEvent (EvKey (KRight)    [MShift]) -> put' $ regenerateScreens j d $ nextReportPeriod journalspan ui
-            -- VtyEvent (EvKey (KLeft)     [MShift]) -> put' $ regenerateScreens j d $ previousReportPeriod journalspan ui
+            -- narrow/widen/move the period as on other screens, for consistency
+            VtyEvent (EvKey (KDown)     [MShift]) -> modify' (shrinkReportPeriod d             >>> regenerateScreens j d)
+            VtyEvent (EvKey (KUp)       [MShift]) -> modify' (growReportPeriod d               >>> regenerateScreens j d)
+            VtyEvent (EvKey (KRight)    [MShift]) -> modify' (nextReportPeriod journalspan     >>> regenerateScreens j d)
+            VtyEvent (EvKey (KLeft)     [MShift]) -> modify' (previousReportPeriod journalspan >>> regenerateScreens j d)
+            VtyEvent (EvKey (KChar 'T') [])       -> modify' (setReportPeriod (DayPeriod d)    >>> regenerateScreens j d)
+
             VtyEvent (EvKey (KChar '/') []) -> put' $ regenerateScreens j d $ showMinibuffer "filter" Nothing ui
             VtyEvent (EvKey k           []) | k `elem` [KBS, KDel] -> (put' $ regenerateScreens j d $ resetFilter ui)
 
@@ -251,7 +256,7 @@ msHandle ev = do
             MouseUp{}   -> return ()
             AppEvent _  -> return ()
 
-    _ -> dbguiEv "msHandle" >> errorWrongScreenType "event handler"
+    _ -> dbguiEv "msHandle" >> errorWrongScreenType "msHandle"
 
 msEnterScreen :: Day -> ScreenName -> UIState -> EventM Name UIState ()
 msEnterScreen d scrname ui@UIState{ajournal=j, aopts=uopts} = do

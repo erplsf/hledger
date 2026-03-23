@@ -6,14 +6,15 @@ _notinfo_({{
 # NAME
 }})
 
-hledger-ui - robust, friendly plain text accounting (TUI version)
+hledger-ui - terminal interface (TUI) for `hledger`, a robust, friendly plain text accounting app.
 
 _notinfo_({{
 # SYNOPSIS
 }})
 
-`hledger-ui [OPTIONS] [QUERYARGS]`\
-`hledger ui -- [OPTIONS] [QUERYARGS]`
+`hledger-ui [OPTS] [QUERYARGS]`\
+or\
+`hledger ui [OPTS] [QUERYARGS]`
 
 _notinfo_({{
 # DESCRIPTION
@@ -42,8 +43,7 @@ for viewing accounts and transactions, and some limited data entry capability.
 It is easier than hledger's command-line interface, and
 sometimes quicker and more convenient than the web interface.
 
-Like hledger, it reads _inputfiles_
-For more about this see hledger(1), hledger_journal(5) etc.
+Like hledger, it _inputfileswithptr_
 
 Unlike hledger, hledger-ui hides all future-dated transactions by default.
 They can be revealed, along with any rule-generated periodic transactions,
@@ -51,58 +51,34 @@ by pressing the F key (or starting with --forecast) to enable "forecast mode".
 
 # OPTIONS
 
-Note: if invoking hledger-ui as a hledger subcommand, write `--` before options as shown above.
+Any arguments are interpreted as a hledger [query](hledger.md#queries) which filters the data.
+hledger-ui provides the following options:
 
-Any QUERYARGS are interpreted as a hledger search query which filters the data.
+```
+Flags:
+  -w --watch                watch for data and date changes and reload
+                            automatically
+     --theme=THEME          use this custom display theme (light,
+                            dark, terminal, greenterm)
+     --cash                 start in the cash accounts screen
+     --bs                   start in the balance sheet accounts screen
+     --is                   start in the income statement accounts screen
+     --all                  start in the all accounts screen
+     --register=ACCTREGEX   start in the (first matched) account's register
+     --change               show period balances (changes) at startup instead
+                            of historical balances
+  -l --flat                 show accounts as a flat list (default)
+  -t --tree                 show accounts as a tree
+```
 
-`-w --watch`
-: watch for data and date changes and reload automatically
+and also supports many of hledger's [general options](hledger.md#options):
 
-`--theme=default|terminal|greenterm`
-: use this custom display theme
+_generaloptions_
 
-`--menu`
-: start in the menu screen
+With hledger-ui, the `--debug` option sends debug output to a `hledger-ui.log` file in the current directory.
 
-`--cash`
-: start in the cash accounts screen
-
-`--bs`
-: start in the balance sheet accounts screen
-
-`--is`
-: start in the income statement accounts screen
-
-`--all`
-: start in the all accounts screen
-
-`--register=ACCTREGEX`
-: start in the (first) matched account's register screen
-
-`--change`
-: show period balances (changes) at startup instead of historical balances
-
-`-l --flat`
-: show accounts as a flat list (default)
-
-`-t --tree`
-: show accounts as a tree
-
- hledger input options:
-
-_inputoptions_
-
-hledger reporting options:
-
-_reportingoptions_
-
-hledger help options:
-
-_helpoptions_
-
-A @FILE argument will be expanded to the contents of FILE,
-which should contain one command line option/argument per line.
-(To prevent this, insert a `--` argument before.)
+If you use the bash shell, you can auto-complete flags by pressing TAB in the command line.
+If this is not working see [Install > Shell completions](install.html#shell-completions).
 
 # MOUSE
 
@@ -126,34 +102,13 @@ The cursor keys navigate:
 `RIGHT` or `ENTER` goes deeper,
 `LEFT` returns to the previous screen,
 `UP`/`DOWN`/`PGUP`/`PGDN`/`HOME`/`END` move up and down through lists.
+`J`/`K` jump down/up 10 items at a time.
 Emacs-style (`CTRL-p`/`CTRL-n`/`CTRL-f`/`CTRL-b`)
-and VI-style (`k`,`j`,`l`,`h`) 
+and VI-style (`k`,`j`,`l`,`h`)
 movement keys are also supported.
-A tip: movement speed is limited by your keyboard repeat rate,
-to move faster you may want to adjust it.
-(If you're on a mac, the karabiner app is one way to do that.)
 
-With shift pressed, the cursor keys adjust the report period,
-limiting the transactions to be shown (by default, all are shown).
-`SHIFT-DOWN/UP` steps downward and upward through these standard report period durations:
-year, quarter, month, week, day.
-Then, `SHIFT-LEFT/RIGHT` moves to the previous/next period.
-`T` sets the report period to today.
-With the `-w/--watch` option, when viewing a "current" period
-(the current day, week, month, quarter, or year),
-the period will move automatically to track the current date.
-To set a non-standard period, you can use `/` and a `date:` query.
-
-(Mac users: SHIFT-DOWN/UP keys do not work by default in Terminal, as of MacOS Monterey.
-You can configure them as follows: 
-open Terminal,
-press CMD-comma to open preferences,
-click Profiles,
-select your current terminal profile on the left,
-click Keyboard on the right,
-click + and add this for Shift-Down: `\033[1;2B`,
-click + and add this for Shift-Up:   `\033[1;2A`.
-Press the Escape key to enter the `\033` part, you can't type it directly.)
+(Tip: movement speed is limited by your keyboard repeat rate, to move faster you may want to adjust it.
+On a mac, the Karabiner app is one way to do that.)
 
 `/` lets you set a general filter query limiting the data shown,
 using the same [query terms](hledger.html#queries) as in hledger and hledger-web.
@@ -167,6 +122,27 @@ both ordinary transactions recorded in the journal, and periodic
 transactions generated by rule. `F` toggles forecast mode, in which
 future/forecasted transactions are shown.
 
+Pressing `SHIFT-DOWN` narrows the report period, and pressing `SHIFT-UP` expands it again.
+When narrowed, the current report period is displayed in the header line,
+pressing `SHIFT-LEFT` or `SHIFT-RIGHT` moves to the previous or next period,
+and pressing `T` sets the period to "today".
+If you are using `-w/--watch` and viewing a narrowed period containing today,
+the view will follow any changes in system date (moving to the period containing the new date).
+(These keys work only with the standard Julian calendar year/quarter/month/week/day periods; they are not affected by a custom report interval specified at the command line.)
+
+You can also specify a non-standard period with `/` and a `date:` query;
+in this case, the period is not movable with the arrow keys.
+
+(Tip: arrow keys with Shift do not work out of the box in all terminal software.
+Eg in Apple's Terminal, the SHIFT-DOWN and SHIFT-UP keys must be configured as follows:
+in Terminal's preferences, click Profiles,
+select your current profile on the left,
+click Keyboard on the right,
+click + and add this for SHIFT-DOWN: `\033[1;2B`,
+click + and add this for SHIFT-UP:   `\033[1;2A`. <!-- Press the Escape key to enter the `\033` part, you can't type it directly.) -->
+In other terminals (Windows Terminal ?) you might need to configure SHIFT-RIGHT and SHIFT-LEFT
+to emit `\033[1;2C` and `\033[1;2D` respectively.)
+
 `ESCAPE` resets the UI state and jumps back to the top screen,
 restoring the app's initial state at startup.
 Or, it cancels minibuffer data entry or the help dialog.
@@ -179,6 +155,7 @@ previous screens. (With large files, this could cause a noticeable pause.)
 
 `I` toggles balance assertion checking.
 Disabling balance assertions temporarily can be useful for troubleshooting.
+(If hledger-ui was started with a `--pivot` option, re-enabling balance assertions with the `I` key also reloads the journal, like `g`.)
 
 `a` runs command-line hledger's add command, and reloads the updated file.
 This allows some basic data entry.
@@ -192,23 +169,23 @@ With some editors (emacs, vi), the cursor will be positioned at the current tran
 when invoked from the register and transaction screens, and at the error location (if possible)
 when invoked from the error screen.
 
-`B` toggles cost mode, showing amounts in their cost's commodity
-(like toggling the [`-B/--cost`](https://hledger.org/hledger.html#b-cost) flag).
+`B` toggles cost mode, showing amounts converted to their cost's commodity
+(see [hledger manual > Cost reporting](hledger.md#cost-reporting).
 
-`V` toggles value mode, showing amounts' current market value in their
-default valuation commodity (like toggling the
-[`-V/--market`](https://hledger.org/hledger.html#v-market-value) flag).
-Note, "current market value" means the value on the report end date if specified, otherwise today.
-To see the value on another date, you can temporarily set that as the report end date.
-Eg: to see a transaction as it was valued on july 30,
-go to the accounts or register screen,
-press `/`,
-and add ` date:-7/30` to the query.
+`V` toggles value mode, showing amounts converted to their market value
+(see [hledger manual > Valuation](hledger.md#valuation) flag).
+More specifically, 
 
-At most one of cost or value mode can be active at once.
+1. By default, the `V` key toggles showing end value (`--value=end`) on or off.
+  The valuation date will be the report end date if specified, otherwise today.
 
-There's not yet any visual reminder when cost or value mode is active;
-for now pressing `b` `b` `v` should reliably reset to normal mode.
+2. If you started hledger-ui with some other valuation (such as `--value=then,EUR`),
+  the `V` key toggles that off or on.
+
+Cost/value tips:
+- When showing end value, you can change the report end date without restarting, by pressing `/` and adding a query like ` date:..YYYY-MM-DD`.
+- Either cost mode, or value mode, can be active, but not both at once. Cost mode takes precedence.
+- There's not yet any visual indicator that cost or value mode is active, other than the amount values.
 
 `q` quits the application.
 
@@ -224,33 +201,33 @@ Or you can use `ESC` to return directly to the top menu screen.
 You can also use a command line flag to specific a different startup screen
 (`--cs`, `--bs`, `--is`, `--all`, or `--register=ACCT`).
 
-## Menu
+## Menu screen
 
 This is the top-most screen.
 From here you can navigate to several screens listing accounts of various types.
 Note some of these may not show anything until you have configured [account types](/hledger.html#account-types).
 
-## Cash accounts
+## Cash accounts screen
 
 This screen shows "cash" (ie, liquid asset) accounts (like `hledger balancesheet type:c`).
 It always shows balances (historical ending balances on the date shown in the title line).
 
-## Balance sheet accounts
+## Balance sheet accounts screen
 
 This screen shows asset, liability and equity accounts (like `hledger balancesheetequity`).
 It always shows balances.
 
-## Income statement accounts
+## Income statement accounts screen
 
 This screen shows revenue and expense accounts (like `hledger incomestatement`).
 It always shows changes (balance changes in the period shown in the title line).
 
-## All accounts
+## All accounts screen
 
 This screen shows all accounts in your journal (unless filtered by a query; like `hledger balance`).
 It shows balances by default; you can toggle showing changes with the `H` key.
 
-## Register
+## Register screen
 
 This screen shows the transactions affecting a particular account.
 Each line represents one transaction, and shows:
@@ -267,6 +244,12 @@ Each line represents one transaction, and shows:
   - the period total, which is from just the transactions displayed
   - or the historical total, which includes any undisplayed transactions before the start of the report period (and matching the filter query if any).
     This will be the running historical balance (what you would see on a bank's website, eg) if not disturbed by a query.
+
+Note, this screen combines each transaction's in-period postings to a
+single line item, dated with the earliest in-period transaction or
+posting date (like hledger's `aregister`). So custom posting dates can
+cause the running balance to be temporarily inaccurate.
+(See [hledger manual > aregister and posting dates](hledger.md#aregister-and-posting-dates).)
 
 Transactions affecting this account's subaccounts will be included in the register
 if the accounts screen is in tree mode,
@@ -288,7 +271,7 @@ unlike command-line hledger).
 
 Press `RIGHT` to view the selected transaction in detail.
 
-## Transaction
+## Transaction screen
 
 This screen shows a single transaction, as a general journal entry,
 similar to hledger's print command and journal format (hledger_journal(5)).
@@ -310,14 +293,7 @@ reload).
 On this screen (and the register screen), the `E` key will open your text editor
 with the cursor positioned at the current transaction if possible.
 
-This screen has a limitation with showing file updates:
-it will not show them until you exit and re-enter it.
-So eg to see the effect of using the `E` key, currently you must:
-- press `E`, edit and save the file, then exit the editor, returning to hledger-ui
-- press `g` to reload the file (or use `-w/--watch` mode)
-- press `LEFT` then `RIGHT` to exit and re-enter the transaction screen.
-
-## Error
+## Error screen
 
 This screen will appear if there is a problem, such as a parse error,
 when you press g to reload. Once you have fixed the problem,
@@ -325,9 +301,7 @@ press g again to reload and resume normal operation.
 (Or, you can press escape to cancel the reload attempt.)
 
 
-# TIPS
-
-## Watch mode
+# WATCH MODE
 
 One of hledger-ui's best features is the auto-reloading `-w/--watch` mode.
 With this flag, it will update the display automatically whenever changes
@@ -337,64 +311,51 @@ This is very useful when reconciling. A good workflow is to have
 your bank's online register open in a browser window, for reference;
 the journal file open in an editor window;
 and hledger-ui in watch mode in a terminal window, eg:
-```shell
+
+```cli
 $ hledger-ui --watch --register checking -C
 ```
+
 As you mark things cleared in the editor,
 you can see the effect immediately without having to context switch.
 This leaves more mental bandwidth for your accounting.
 Of course you can still interact with hledger-ui when needed,
 eg to toggle cleared mode, or to explore the history.
 
-Here are some current limitations to be aware of:
+## --watch problems
 
-Changes might not be detected with certain editors, possibly including 
-Jetbrains IDEs, `gedit`, other Gnome applications; or on certain unusual filesystems.
-([#1617](https://github.com/simonmichael/hledger/issues/1617),
-[#911](https://github.com/simonmichael/hledger/issues/911)).
-To work around, reload manually by pressing `g` in the hledger-ui window.
-(Or see #1617 for another workaround, and let us know if it works for you.)
+*However.* There are limitations/unresolved bugs with `--watch`:
 
-CPU and memory usage can sometimes gradually increase, if `hledger-ui --watch` is left running for days.
-(Possibly correlated with certain platforms, many transactions, and/or large numbers of other files present).
-To work around, `q`uit and restart it,
-or (where supported) suspend (`CTRL-z`) and restart it (`fg`).
+- It may not work at all for you, depending on platform or system configuration.
+  On some unix systems, increasing fs.inotify.max_user_watches or fs.file-max parameters in /etc/sysctl.conf might help.
+  ([#836](https://github.com/simonmichael/hledger/issues/836))
+- It may not detect changes made from outside a virtual machine, ie by an editor running on the host system.
+- It may not detect file changes on certain less common filesystems.
+- It may use increasing CPU and RAM over time, especially with large files.
+  (This is probably not --watch specific, you may be able to reproduce it by pressing `g` repeatedly.)
+  ([#1825](https://github.com/simonmichael/hledger/issues/1825))
 
-## Debug output
+Tips/workarounds:
 
-You can add `--debug[=N]` to the command line to log debug output.
-This will be logged to the file `hledger-ui.log` in the current directory.
-N ranges from 1 (least output, the default) to 9 (maximum output).
+- If --watch won't work for you, press `g` to reload data manually instead.
+- If --watch is leaking resources over time, quit and restart (or suspend and resume) hledger-ui when you're not using it.
+- When running hledger-ui inside a VM, also make file changes inside the VM.
+- When working with files mounted from another machine, make sure the system clocks on both machines are roughly in agreement.
 
 # ENVIRONMENT
 
-**COLUMNS**
-The screen width to use.
-Default: the full terminal width.
-
-_LEDGER_FILE_
-
-# FILES
-
-Reads _inputfiles_
+**LEDGER_FILE**
+The main journal file to use when not specified with `-f/--file`.
+Default: `$HOME/.hledger.journal`.
 
 # BUGS
 
+_reportbugs_
+
+Some known issues:
+
 `-f-` doesn't work (hledger-ui can't read from stdin).
 
-`-V` affects only the accounts screen.
+`--watch` is not robust, especially with large files (see WATCH MODE above).
 
-When you press `g`, the current and all previous screens are
-regenerated, which may cause a noticeable pause with large files.
-Also there is no visual indication that this is in progress.
-
-`--watch` is not yet fully robust. It works well for normal usage, but
-many file changes in a short time (eg saving the file thousands of
-times with an editor macro) can cause problems at least on OSX.
-Symptoms include: unresponsive UI, periodic resetting of the cursor
-position, momentary display of parse errors, high CPU usage eventually
-subsiding, and possibly a small but persistent build-up of CPU usage
-until the program is restarted.
-
-Also, if you are viewing files mounted from another machine, `-w/--watch`
-requires that both machine clocks are roughly in step.
+If you press `g` with large files, there could be a noticeable pause with the UI unresponsive.
